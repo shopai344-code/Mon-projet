@@ -284,71 +284,121 @@ function loadDB(){
  return data;
 }
 
-var CLOUD_URL='https://crudcrud.com/api/6eae5a5073d44fc1a504c137c60bee2d/ti_platform/6ad61dafd3da8703e846a572';
+
+var CLOUD_BASE='https://crudcrud.com/api/8b7b4bffc4fe4d5d9fa4b92f7265e5d4';
+var CLOUD_USERS=CLOUD_BASE+'/ti_users';
+var CLOUD_REQUESTS=CLOUD_BASE+'/ti_requests';
+var CLOUD_INVESTMENTS=CLOUD_BASE+'/ti_investments';
+var CLOUD_META=CLOUD_BASE+'/ti_meta';
+
+function userKey(u){return String((u&&(u.uid||u.email||u.phone))||'')}
+function reqKey(r){return String((r&&r.id)||'')}
+function invKey(i){return String((i&&(i.id||i.requestId))||'')}
+
 function mergeByKey(localArr, cloudArr, keyFn){
  localArr=Array.isArray(localArr)?localArr.slice():[];
  cloudArr=Array.isArray(cloudArr)?cloudArr.slice():[];
  const map={};
- cloudArr.forEach(function(item){if(item)map[keyFn(item)]=item});
+ cloudArr.forEach(function(item){var k=keyFn(item);if(k)map[k]=item});
  localArr.forEach(function(item){
-  if(!item)return;
-  const k=keyFn(item);
-  const prev=map[k];
+  var k=keyFn(item); if(!k)return;
+  var prev=map[k];
   if(!prev){map[k]=item;return}
-  // keep the richer / newer one
-  const prevT=new Date(prev.updatedAt||prev.reviewedAt||prev.created||0).getTime();
-  const curT=new Date(item.updatedAt||item.reviewedAt||item.created||0).getTime();
-  // prefer higher balances for users
   if(item.deposit!=null||item.withdraw!=null){
    map[k]=Object.assign({},prev,item,{
     deposit:Math.max(Number(prev.deposit)||0,Number(item.deposit)||0),
     withdraw:Math.max(Number(prev.withdraw)||0,Number(item.withdraw)||0),
     refEarnings:Math.max(Number(prev.refEarnings)||0,Number(item.refEarnings)||0)
    });
-  }else if(curT>=prevT){
+  } else {
    map[k]=Object.assign({},prev,item);
   }
  });
  return Object.keys(map).map(function(k){return map[k]});
 }
-function userKey(u){return String((u&&(u.uid||u.email||u.phone))||Math.random())}
-function reqKey(r){return String((r&&r.id)||Math.random())}
-function invKey(i){return String((i&&(i.id||i.requestId))||Math.random())}
+
+async function cloudGetCollection(url){
+ try{
+  const res=await fetch(url+'?t='+Date.now());
+  if(!res.ok)return [];
+  const data=await res.json();
+  return Array.isArray(data)?data:[];
+ }catch(e){console.warn('cloud get',url,e);return []}
+}
+async function cloudUpsertUser(u){
+ if(!u)return;
+ const key=userKey(u);
+ if(!key)return;
+ try{
+  const all=await cloudGetCollection(CLOUD_USERS);
+  const existing=all.find(function(x){return userKey(x)===key});
+  const body=Object.assign({},u);
+  delete body._id;
+  if(existing&&existing._id){
+   await fetch(CLOUD_USERS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }else{
+   await fetch(CLOUD_USERS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }
+ }catch(e){console.warn('upsert user',e)}
+}
+async function cloudUpsertRequest(r){
+ if(!r)return;
+ try{
+  const all=await cloudGetCollection(CLOUD_REQUESTS);
+  const existing=all.find(function(x){return String(x.id)===String(r.id)});
+  const body=Object.assign({},r);
+  delete body._id;
+  if(body.proof&&String(body.proof).length>200000)body.proof='[image]';
+  if(existing&&existing._id){
+   await fetch(CLOUD_REQUESTS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }else{
+   await fetch(CLOUD_REQUESTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }
+ }catch(e){console.warn('upsert req',e)}
+}
+async function cloudUpsertInvestment(inv){
+ if(!inv)return;
+ try{
+  const all=await cloudGetCollection(CLOUD_INVESTMENTS);
+  const existing=all.find(function(x){return String(x.id)===String(inv.id)});
+  const body=Object.assign({},inv);
+  delete body._id;
+  if(existing&&existing._id){
+   await fetch(CLOUD_INVESTMENTS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }else{
+   await fetch(CLOUD_INVESTMENTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }
+ }catch(e){console.warn('upsert inv',e)}
+}
 
 function saveDB(){
  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.error(e)}
- pushCloudNow().catch(function(e){console.warn('cloud save',e)});
+ // sync important records in background
+ try{
+  (db.users||[]).forEach(function(u){cloudUpsertUser(u)});
+  (db.requests||[]).slice(-30).forEach(function(r){cloudUpsertRequest(r)});
+  (db.investments||[]).slice(-30).forEach(function(i){cloudUpsertInvestment(i)});
+ }catch(e){console.warn(e)}
 }
 function pushCloudNow(){
- return fetch(CLOUD_URL+'?t='+Date.now()).then(function(res){return res.ok?res.json():null}).then(function(cloud){
-  let users=db.users||[];
-  let requests=db.requests||[];
-  let investments=db.investments||[];
-  if(cloud){
-   users=mergeByKey(users,cloud.users,userKey);
-   requests=mergeByKey(requests,cloud.requests,reqKey);
-   investments=mergeByKey(investments,cloud.investments,invKey);
-   db.users=users;db.requests=requests;db.investments=investments;
-   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
-  }
-  const payload={users:users,requests:requests.map(function(r){const c=Object.assign({},r);if(c.proof&&String(c.proof).length>400000)c.proof='[image]';return c;}),investments:investments,wave:db.wave||WAVE,updatedAt:new Date().toISOString()};
-  return fetch(CLOUD_URL,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
- }).then(function(r){
-  if(!r||!r.ok)throw new Error('sync '+(r&&r.status));
-  return true;
- });
+ return Promise.all([
+  Promise.all((db.users||[]).map(function(u){return cloudUpsertUser(u)})),
+  Promise.all((db.requests||[]).slice(-40).map(function(r){return cloudUpsertRequest(r)})),
+  Promise.all((db.investments||[]).map(function(i){return cloudUpsertInvestment(i)}))
+ ]).then(function(){return true});
 }
-
 async function loadCloudDB(){
  try{
-  const res=await fetch(CLOUD_URL+'?t='+Date.now());
-  if(!res.ok)return false;
-  const cloud=await res.json();
-  if(!cloud||typeof cloud!=='object')return false;
-  db.users=mergeByKey(db.users||[],cloud.users||[],userKey);
-  db.requests=mergeByKey(db.requests||[],cloud.requests||[],reqKey);
-  db.investments=mergeByKey(db.investments||[],cloud.investments||[],invKey);
-  if(cloud.wave)db.wave=cloud.wave;
+  const [users,requests,investments]=await Promise.all([
+   cloudGetCollection(CLOUD_USERS),
+   cloudGetCollection(CLOUD_REQUESTS),
+   cloudGetCollection(CLOUD_INVESTMENTS)
+  ]);
+  // strip _id from cloud items for local use
+  const clean=function(arr){return (arr||[]).map(function(x){var o=Object.assign({},x);delete o._id;return o})};
+  db.users=mergeByKey(db.users||[],clean(users),userKey);
+  db.requests=mergeByKey(db.requests||[],clean(requests),reqKey);
+  db.investments=mergeByKey(db.investments||[],clean(investments),invKey);
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
   return true;
  }catch(e){console.warn('cloud load',e);return false}
@@ -357,8 +407,9 @@ async function adminRefresh(){
  toast('Actualisation…');
  const ok=await loadCloudDB();
  renderAdmin();
- toast(ok?('Données à jour : '+(db.users||[]).length+' client(s), '+(db.requests||[]).length+' demande(s).'):'Impossible de charger le cloud. Vérifiez Internet.');
+ toast(ok?('Données à jour : '+(db.users||[]).length+' client(s), '+(db.requests||[]).length+' demande(s).'):'Sync impossible. Vérifiez Internet.');
 }
+
 function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(t){toastRoot.innerHTML='<div class="toast">'+esc(t)+'</div>';setTimeout(()=>toastRoot.innerHTML='',3000)}
 function go(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.navitem').forEach(x=>x.classList.toggle('active',x.dataset.go===id||(id==='withdraw'&&x.dataset.go==='recharge')||(id==='referral'&&x.dataset.go==='account')));if(id==='products')renderProducts(duration);if(id==='home')renderHome();if(id==='history')renderHistory();if(id==='account')renderAccount();if(id==='admin')renderAdmin();if(id==='investments')renderInvestments();if(id==='referral')renderReferral();window.scrollTo(0,0)}
@@ -474,7 +525,11 @@ async function register(){
   const k=db.users.findIndex(x=>x.uid===u.uid||x.email===email);if(k>=0)db.users[k]={...db.users[k],...u};else db.users.push(u);
   current=u;welcomeIsRegister=true;
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
-  try{await pushCloudNow();toast('Compte créé et synchronisé.');}catch(e){toast('Compte créé. Sync cloud échouée — réessayez plus tard.');}
+  try{
+   await cloudUpsertUser(u);
+   await pushCloudNow();
+   toast('Compte créé et synchronisé.');
+  }catch(e){toast('Compte créé. Sync cloud échouée — dites au client de se reconnecter.');}
   showWelcome();
  }catch(e){toast((window.firebaseAuthError&&window.firebaseAuthError(e))||e.message||'Erreur d inscription')}finally{setBusy('registerButton',false)}}
 async function login(){
@@ -502,7 +557,9 @@ async function login(){
   if(!u){u={name:email.split('@')[0],country:'',phone:email,email,uid:user.uid,deposit:0,withdraw:0,created:new Date().toISOString()};db.users.push(u);saveDB()}
   else if(!u.uid){u.uid=user.uid;saveDB()}
   current=u;ensureRefCode(u);welcomeIsRegister=false;
-  try{await loadCloudDB();
+  try{
+   await cloudUpsertUser(u);
+   await loadCloudDB();
    const refreshed=db.users.find(x=>x.uid===u.uid||x.email===u.email||(u.phone&&x.phone===u.phone));
    if(refreshed){current=refreshed;u=refreshed}
   }catch(e){}
