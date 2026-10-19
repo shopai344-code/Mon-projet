@@ -218,7 +218,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>📸 Bonus capture de retrait</h3>
 <p class="muted" style="font-size:12px;line-height:1.55;margin-bottom:10px">Envoyez une <b>capture d'écran de votre retrait</b> et recevez <b style="color:#36c98f">50 FCFA</b> sur votre solde de retrait (1 fois par compte).</p>
 <div class="field"><label>Capture d'écran du retrait</label>
-<input id="blogProofFile" type="file" accept="image/*" capture="environment" onchange="previewBlogProof(this)">
+<input id="blogProofFile" type="file" accept="image/*" onchange="previewBlogProof(this)">
 <div id="blogProofPreview" style="margin-top:8px"></div></div>
 <button class="wide" onclick="submitBlogProof()">Envoyer et recevoir 50 FCFA</button>
 <p id="blogProofStatus" class="muted" style="font-size:11px;margin-top:8px"></p>
@@ -282,7 +282,42 @@ function loadDB(){
  try{if(!localStorage.getItem(CLEANUP_KEY)){data.users=[];data.requests=[];localStorage.setItem(CLEANUP_KEY,'done');localStorage.setItem(KEY,JSON.stringify(data));}}catch(e){}
  return data;
 }
-function saveDB(){localStorage.setItem(KEY,JSON.stringify(db))}
+function saveDB(){
+ try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.error(e)}
+ try{
+  const payload={
+   users:db.users||[],
+   requests:(db.requests||[]).map(function(r){
+    const c=Object.assign({},r);
+    if(c.proof&&String(c.proof).length>500000)c.proof='[image]';
+    return c;
+   }),
+   investments:db.investments||[],
+   wave:db.wave||WAVE,
+   updatedAt:new Date().toISOString()
+  };
+  fetch(CLOUD_URL,{
+   method:'PUT',
+   headers:{'Content-Type':'application/json'},
+   body:JSON.stringify(payload)
+  }).catch(function(e){console.warn('sync save',e)});
+ }catch(e){console.warn(e)}
+}
+var CLOUD_URL='https://crudcrud.com/api/fd250cbfdfcf462eaac6d5dbf70d47e5/ti_main/6ad60590b2407e03e84f86a7';
+async function loadCloudDB(){
+ try{
+  const res=await fetch(CLOUD_URL+'?t='+Date.now());
+  if(!res.ok)return false;
+  const cloud=await res.json();
+  if(!cloud||typeof cloud!=='object')return false;
+  if(Array.isArray(cloud.users))db.users=cloud.users;
+  if(Array.isArray(cloud.requests))db.requests=cloud.requests;
+  if(Array.isArray(cloud.investments))db.investments=cloud.investments;
+  if(cloud.wave)db.wave=cloud.wave;
+  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
+  return true;
+ }catch(e){console.warn('sync load',e);return false}
+}
 function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(t){toastRoot.innerHTML='<div class="toast">'+esc(t)+'</div>';setTimeout(()=>toastRoot.innerHTML='',3000)}
 function go(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.navitem').forEach(x=>x.classList.toggle('active',x.dataset.go===id||(id==='withdraw'&&x.dataset.go==='recharge')||(id==='referral'&&x.dataset.go==='account')));if(id==='products')renderProducts(duration);if(id==='home')renderHome();if(id==='history')renderHistory();if(id==='account')renderAccount();if(id==='admin')renderAdmin();if(id==='investments')renderInvestments();if(id==='referral')renderReferral();window.scrollTo(0,0)}
@@ -306,13 +341,67 @@ function renderProducts(days=30){duration=Number(days);const arr=duration===30?P
 function renderHome(){processMaturedInvestments();hello.textContent=current?'Bonjour, '+current.name:'Bonjour, invité';homeBalance.textContent=money(current?current.deposit+current.withdraw:0);homeProducts.innerHTML=PLAN30.slice(0,4).map((p,i)=>productHTML(p,i,false)).join('');const rs=current?db.requests.filter(r=>r.phone===current.phone).slice(-3).reverse():[];homeHistory.innerHTML=rs.length?rs.map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleDateString('fr-FR')}</small></span><span>${money(r.amount)}<br><span class="status">${esc(r.status)}</span></span></div>`).join(''):'<div class="muted" style="font-size:11px">Aucune activité pour le moment.</div>'}
 function askPlan(price,days,vip,daily=0,total=0,longTerm=false){if(!current){toast('Connectez-vous pour continuer.');showAuth('login');authScreen.style.display='flex';document.querySelector('.app').classList.add('gated');return}const approvedDeposit=db.requests.some(r=>r.phone===current.phone&&r.type.startsWith('Dépôt Wave')&&r.status==='Validée');if(!approvedDeposit){toast('Vous devez effectuer un dépôt Wave et attendre sa validation avant tout investissement.');go('recharge');return}if((Number(current.deposit)||0)<price){toast('Votre dépôt validé disponible est insuffisant pour ce plan.');go('recharge');return}modal((longTerm?'Plan long terme ':'Plan VIP ')+vip,`<p>Dépôt initial : <b>${money(price)}</b></p><p>Gain quotidien quotidien du plan : <b>${money(daily)}</b></p><p>Durée : <b>${days} jours</b></p><p>Gains totaux calculés : <b>${money(total)}</b></p><p>Capital + gains calculés : <b>${money(price+total)}</b></p><div class="note">Vérifiez bien le montant, la durée et le gain quotidien avant de confirmer votre investissement.</div><button class="wide" onclick="addRequest('Souscription '+( ${JSON.stringify(longTerm)} ? 'long terme ':'VIP ')+${vip},${price},${daily},${days},${JSON.stringify(!!longTerm)});closeModal()">Confirmer l’investissement</button>`)}
 function showAuth(which){const isLogin=which==='login';authLoginForm.classList.toggle('hidden',!isLogin);authRegisterForm.classList.toggle('hidden',isLogin);authLoginTab.classList.toggle('active',isLogin);authRegisterTab.classList.toggle('active',!isLogin)}
-function enterApp(){authScreen.style.display='none';document.querySelector('.app').classList.remove('gated');renderAccount();renderHome();go('home');showWelcomeMessage()}
+
+var cloudRefreshTimer=null;
+function startCloudRefresh(){
+ if(cloudRefreshTimer)clearInterval(cloudRefreshTimer);
+ cloudRefreshTimer=setInterval(async function(){
+  if(!current&&!admin)return;
+  const ok=await loadCloudDB();
+  if(!ok)return;
+  if(current){
+   const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
+   if(refreshed)current=refreshed;
+   renderHome();renderAccount();renderHistory();
+  }
+  if(admin)renderAdmin();
+ },12000);
+}
+
+function enterApp(){
+ authScreen.style.display='none';
+ document.querySelector('.app').classList.remove('gated');
+ loadCloudDB().then(function(){
+  if(current){
+   const refreshed=db.users.find(x=> (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
+   if(refreshed)current=refreshed;
+  }
+  renderAccount();renderHome();go('home');startCloudRefresh();showWelcomeMessage();
+ }).catch(function(){renderAccount();renderHome();go('home');showWelcomeMessage()});
+}
 function showWelcome(){enterApp()}
 function showWelcomeMessage(){modalRoot.innerHTML=`<div class="modalback"><div class="modal welcome-modal" style="padding:0;overflow:hidden;background:#fff;color:#292637;border-radius:24px;border:0"><div style="padding:34px 20px;background:linear-gradient(135deg,#ff3347,#b90d25);text-align:center;color:white"><div style="font-size:46px;font-weight:1000;letter-spacing:-3px">TI</div><div style="font-weight:900;font-size:18px">TECHNOLOGIE INVESTI</div></div><div style="padding:24px 22px 22px;text-align:center"><h2 style="font-size:23px;margin:0 0 12px;color:#292637">🎉 Bienvenue${current&&current.name?' '+esc(current.name):''} !</h2><p style="font-size:15px;line-height:1.6;color:#777482;margin:0 0 20px">Votre ${current&&current.created?'compte':'session'} est prêt. Découvrez votre espace, consultez les conditions des plans et suivez les annonces officielles.</p><div style="text-align:left;font-size:14px;line-height:1.7;color:#393746;margin-bottom:20px"><p>🚀 <b>1.</b> Votre accès à l’espace client est ouvert.</p><p>💰 <b>2.</b> Consultez les dépôts et les conditions des plans avant toute demande.</p><p>🔥 <b>3.</b> Rejoignez notre groupe Telegram pour recevoir les actualités et annonces.</p></div><a href="https://t.me/+CzO9jS2-CM1lMzBk" target="_blank" rel="noopener noreferrer" style="display:block;padding:16px 12px;background:#fff0f1;color:#b90d25;border-radius:14px;font-weight:900;margin-bottom:12px">✈️ Rejoindre le groupe Telegram</a><button class="wide" style="margin:0;padding:16px;background:linear-gradient(90deg,#ff3347,#c20f2b)" onclick="closeModal()">J’AI COMPRIS</button><p style="font-size:10px;color:#888;margin:13px 0 0">Bienvenue sur votre espace client.</p></div></div></div>`}
 function validateFirebasePhone(p){if(!/^\+[1-9]\d{7,14}$/.test(p))return 'Numéro invalide. Utilisez le format international, par exemple +2250566219780.';const r={'+225':[10,'Côte d’Ivoire : +225 suivi de 10 chiffres (ex. +2250566219780). Votre numéro commence par 01, 05 ou 07.'],'+229':[10,'Bénin : +229 suivi de 10 chiffres (ex. +2290197000000).'],'+228':[8,'Togo : +228 suivi de 8 chiffres.'],'+226':[8,'Burkina Faso : +226 suivi de 8 chiffres.']};for(const k in r){if(p.startsWith(k)){const n=p.length-k.length;if(n!==r[k][0])return 'Numéro incomplet ou trop long ('+n+' chiffres après '+k+'). '+r[k][1];}}return '';}
 function normalizeFirebasePhone(raw,country){let phone=String(raw||'').trim().replace(/[\s().-]/g,'');if(phone.startsWith('00'))phone='+'+phone.slice(2);if(phone.startsWith('+'))return phone;if(/^225\d+$/.test(phone))return '+'+phone;if(/^0\d{9}$/.test(phone) && country==='Côte d’Ivoire')return '+225'+phone;if(/^\d{8}$/.test(phone) && country==='Côte d’Ivoire')return '+225'+phone;return phone;}
 function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)}
 function setBusy(id,on){const b=document.getElementById(id);if(b){b.disabled=on;b.classList.toggle('is-loading',on)}}
+
+
+function digitsPhone(p){return String(p||'').replace(/\D/g,'')}
+function findUserByPhone(phone){
+ const d=digitsPhone(phone);
+ if(!d)return null;
+ // exact first
+ let u=(db.users||[]).find(x=>x.phone===phone);
+ if(u)return u;
+ // match by last 8-10 digits
+ return (db.users||[]).find(x=>{
+  const xd=digitsPhone(x.phone);
+  if(!xd)return false;
+  if(xd===d)return true;
+  if(xd.length>=8&&d.length>=8&&(xd.endsWith(d.slice(-8))||d.endsWith(xd.slice(-8))))return true;
+  if(xd.length>=10&&d.length>=10&&(xd.endsWith(d.slice(-10))||d.endsWith(xd.slice(-10))))return true;
+  return false;
+ })||null;
+}
+function findUserForRequest(r){
+ if(!r)return null;
+ let u=findUserByPhone(r.phone);
+ if(u)return u;
+ if(r.email){u=(db.users||[]).find(x=>x.email&&x.email.toLowerCase()===String(r.email).toLowerCase());if(u)return u}
+ if(r.uid){u=(db.users||[]).find(x=>x.uid===r.uid);if(u)return u}
+ return null;
+}
 
 function waitForFirebase(timeoutMs){
  timeoutMs=timeoutMs||12000;
@@ -353,9 +442,12 @@ async function login(){
   admin=true;
   authScreen.style.display='none';
   document.querySelector('.app').classList.remove('gated');
-  go('admin');
-  renderAdmin();
-  toast('Session administrateur ouverte.');
+  setBusy('loginButton',true);
+  loadCloudDB().then(function(){
+   go('admin');
+   renderAdmin();
+   toast('Session administrateur ouverte.');
+  }).finally(function(){setBusy('loginButton',false)});
   return;
  }
  if(!validEmail(email)){toast('Adresse e-mail invalide.');return}
@@ -366,7 +458,12 @@ async function login(){
   let u=db.users.find(x=>x.uid===user.uid||x.email===email);
   if(!u){u={name:email.split('@')[0],country:'',phone:email,email,uid:user.uid,deposit:0,withdraw:0,created:new Date().toISOString()};db.users.push(u);saveDB()}
   else if(!u.uid){u.uid=user.uid;saveDB()}
-  current=u;ensureRefCode(u);welcomeIsRegister=false;showWelcome();
+  current=u;ensureRefCode(u);welcomeIsRegister=false;
+  try{await loadCloudDB();
+   const refreshed=db.users.find(x=>x.uid===u.uid||x.email===u.email||(u.phone&&x.phone===u.phone));
+   if(refreshed){current=refreshed;u=refreshed}
+  }catch(e){}
+  showWelcome();
  }catch(e){
   const msg=(window.firebaseAuthError&&window.firebaseAuthError(e))||'E-mail ou mot de passe incorrect.';
   toast(msg);
@@ -396,12 +493,12 @@ function confirmDepositPhone(amount){
 function payDepositCI(){
  if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
  const d=pendingDeposit;
- db.requests.push({id:Date.now(),type:'Dépôt Wave CI',phone:d.phone,amount:d.amount,status:'À vérifier',country:'Côte d’Ivoire',created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();closeModal();
+ db.requests.push({id:Date.now(),type:'Dépôt Wave CI',phone:d.phone,amount:d.amount,status:'À vérifier',country:'Côte d’Ivoire',email:current&&current.email,uid:current&&current.uid,userName:current&&current.name,created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();closeModal();
  window.open(db.wave||WAVE,'_blank','noopener');toast('Lien Wave ouvert. Votre dépôt sera validé après vérification.');pendingDeposit=null;pendingDepositMode='';
 }
 function showInternationalProof(){
  if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
- modal('Dépôt hors Côte d’Ivoire',`<p>Montant choisi : <b>${money(pendingDeposit.amount)}</b></p><div class="panel" style="padding:16px;margin:12px 0;border-color:#168ff0;background:linear-gradient(135deg,#082b4d,#0a172a)"><div style="font-weight:800;font-size:16px;margin-bottom:12px">Coordonnées Wave à copier</div><p style="margin:0 0 6px">Nom de la plateforme</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong id="intlPlatformName" style="font-size:20px;color:#fff">TECHNOLOGIE INVESTI</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('TECHNOLOGIE INVESTI')">Copier le nom</button></div><p style="margin:14px 0 6px">Numéro Wave</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:27px;letter-spacing:2px;color:#69d8ff">0566219780</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('0566219780')">Copier le numéro</button></div><p class="muted" style="font-size:12px;margin-top:12px">Ouvrez Wave vous-même, saisissez ces coordonnées et vérifiez que le nom du bénéficiaire affiché correspond avant de confirmer. Si le transfert n’est pas disponible dans votre pays, n’envoyez pas d’argent.</p></div><div class="field"><label>Capture d’écran du reçu de paiement (obligatoire)</label><input id="depositProofFile" type="file" accept="image/*" capture="environment" onchange="previewDepositProof(this)"><small class="muted">Après le transfert, choisissez la capture d’écran du reçu Wave.</small><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitInternationalProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt restera en attente jusqu’à ce que l’administrateur vérifie la preuve et valide la demande.</p>`)
+ modal('Dépôt hors Côte d’Ivoire',`<p>Montant choisi : <b>${money(pendingDeposit.amount)}</b></p><div class="panel" style="padding:16px;margin:12px 0;border-color:#168ff0;background:linear-gradient(135deg,#082b4d,#0a172a)"><div style="font-weight:800;font-size:16px;margin-bottom:12px">Coordonnées Wave à copier</div><p style="margin:0 0 6px">Nom de la plateforme</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong id="intlPlatformName" style="font-size:20px;color:#fff">TECHNOLOGIE INVESTI</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('TECHNOLOGIE INVESTI')">Copier le nom</button></div><p style="margin:14px 0 6px">Numéro Wave</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:27px;letter-spacing:2px;color:#69d8ff">0566219780</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('0566219780')">Copier le numéro</button></div><p class="muted" style="font-size:12px;margin-top:12px">Ouvrez Wave vous-même, saisissez ces coordonnées et vérifiez que le nom du bénéficiaire affiché correspond avant de confirmer. Si le transfert n’est pas disponible dans votre pays, n’envoyez pas d’argent.</p></div><div class="field"><label>Capture d’écran du reçu de paiement (obligatoire)</label><input id="depositProofFile" type="file" accept="image/*" onchange="previewDepositProof(this)"><small class="muted">Après le transfert, choisissez la capture d’écran du reçu Wave.</small><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitInternationalProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt restera en attente jusqu’à ce que l’administrateur vérifie la preuve et valide la demande.</p>`)
 }
 function copyPaymentDetail(value){
  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(value).then(()=>toast('Copié : '+value)).catch(()=>fallbackCopyPayment(value));}
@@ -424,7 +521,7 @@ function submitInternationalProof(){
  if(!pendingProofData){toast('Ajoutez la capture d’écran de paiement avant l’envoi.');return}
  const ref=(document.getElementById('depositReference')?.value||'').trim();
  const d=pendingDeposit;
- try{db.requests.push({id:Date.now(),type:'Dépôt Wave international',phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country,reference:ref,proof:pendingProofData,created:new Date().toISOString()});saveDB()}catch(e){toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
+ try{db.requests.push({id:Date.now(),type:'Dépôt Wave international',phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country,reference:ref,proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString()});saveDB()}catch(e){toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
  renderHistory();renderAdmin();closeModal();pendingDeposit=null;pendingProofData='';toast('Preuve envoyée. Le dépôt sera validé après vérification administrateur.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
@@ -473,7 +570,7 @@ function addRequest(type,amount,daily,days,longTerm){
 }
 function renderHistory(){historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone).slice().reverse().map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleString('fr-FR')}</small></span><span style="text-align:right">${money(r.amount)}<br><span class="status">${esc(r.status)}</span></span></div>`).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>'}
 function modal(title,body){modalRoot.innerHTML=`<div class="modalback" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><h3>${esc(title)}</h3><button class="iconbtn" onclick="closeModal()">✕</button></div>${body}</div></div>`}function closeModal(){modalRoot.innerHTML=''}
-function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=pass==='Moussa';if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;renderAdmin();toast('Accès administrateur ouvert.');}
+function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=pass==='Moussa';if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;loadCloudDB().then(function(){renderAdmin();toast('Accès administrateur ouvert.');});}
 function adminLogout(){admin=false;renderAdmin()}
 function renderAdmin(){
  adminLoginBox.classList.toggle('hidden',admin);
@@ -496,7 +593,7 @@ function renderAdmin(){
  if(typeof waveLink!=='undefined'&&waveLink)waveLink.value=db.wave||'';
  const pendingRequests=reqs.filter(function(r){return !['Validée','Refusée'].includes(r.status)});
  adminRequests.innerHTML=pendingRequests.length?'<table><tr><th>Type / client</th><th>Montant</th><th>Actions</th></tr>'+pendingRequests.slice().reverse().map(function(r){
-  return '<tr><td>'+esc(r.type)+'<br>'+esc(r.phone)+(r.beneficiary?'<br>Vers : '+esc(r.beneficiary):'')+(r.reference?'<br>Réf. : '+esc(r.reference):'')+(r.proof?'<br><a href="'+r.proof+'" target="_blank" rel="noopener" style="color:#70caff">Voir preuve ↗</a>':'')+'</td><td>'+money(r.amount)+(r.fee?'<br><small>Frais '+money(r.fee)+'</small>':'')+'</td><td>'+esc(r.status)+'<br><button class="smallbtn" onclick="setRequestStatus('+r.id+',\'Validée\')">Valider</button> <button class="smallbtn" style="background:#343741" onclick="setRequestStatus('+r.id+',\'Refusée\')">Refuser</button></td></tr>';
+  return '<tr><td>'+esc(r.type)+'<br>'+esc(r.userName||'')+' '+esc(r.phone)+(r.email?'<br>'+esc(r.email):'')+(r.beneficiary?'<br>Vers : '+esc(r.beneficiary):'')+(r.reference?'<br>Réf. : '+esc(r.reference):'')+(r.proof?'<br><a href="'+r.proof+'" target="_blank" rel="noopener" style="color:#70caff">Voir preuve ↗</a>':'')+'</td><td>'+money(r.amount)+(r.fee?'<br><small>Frais '+money(r.fee)+'</small>':'')+'</td><td>'+esc(r.status)+'<br><button class="smallbtn" onclick="setRequestStatus('+r.id+',\'Validée\')">Valider</button> <button class="smallbtn" style="background:#343741" onclick="setRequestStatus('+r.id+',\'Refusée\')">Refuser</button></td></tr>';
  }).join('')+'</table>':'<p class="muted">Aucune demande en attente.</p>';
  function userRow(u){
   return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.phone)+'</td><td>'+esc(u.country||'-')+'</td><td>'+money(u.deposit||0)+'</td><td>'+money(u.withdraw||0)+'</td><td>'+esc(u.email||'-')+'</td></tr>';
@@ -515,9 +612,18 @@ function renderAdmin(){
   }).join('')+'</table>':'<p class="muted">Aucune capture blog reçue.</p>';
  }
 }
-function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Dépôt Wave')){const u=db.users.find(x=>x.phone===r.phone);if(u){u.deposit=(Number(u.deposit)||0)+Number(r.amount||0);if(current&&current.phone===u.phone)current=u}}if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Souscription')){const u=db.users.find(x=>x.phone===r.phone);if(u){u.deposit=Math.max(0,(Number(u.deposit)||0)-Number(r.amount||0));if(current&&current.phone===u.phone)current=u}if(!Array.isArray(db.investments))db.investments=[];const already=db.investments.some(inv=>inv.requestId===r.id);if(!already){db.investments.push({id:Date.now()+Math.floor(Math.random()*1000),requestId:r.id,phone:r.phone,type:r.type,amount:Number(r.amount)||0,daily:Number(r.daily)||0,days:Number(r.days)||0,longTerm:!!r.longTerm,startDate:new Date().toISOString(),status:'active',credited:false});payReferralCommissions(r.phone,Number(r.amount)||0)}}
+function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Dépôt Wave')){
+ const u=findUserForRequest(r);
+ if(u){
+  u.deposit=(Number(u.deposit)||0)+Number(r.amount||0);
+  if(current&&(current.phone===u.phone||current.email===u.email||current.uid===u.uid))current=u;
+  toast('Dépôt crédité : '+money(r.amount)+' pour '+esc(u.name||u.phone));
+ }else{
+  toast('Dépôt validé mais client introuvable (vérifiez le numéro).');
+ }
+}if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Souscription')){const u=findUserForRequest(r);if(u){u.deposit=Math.max(0,(Number(u.deposit)||0)-Number(r.amount||0));if(current&&current.phone===u.phone)current=u}if(!Array.isArray(db.investments))db.investments=[];const already=db.investments.some(inv=>inv.requestId===r.id);if(!already){db.investments.push({id:Date.now()+Math.floor(Math.random()*1000),requestId:r.id,phone:r.phone,type:r.type,amount:Number(r.amount)||0,daily:Number(r.daily)||0,days:Number(r.days)||0,longTerm:!!r.longTerm,startDate:new Date().toISOString(),status:'active',credited:false});payReferralCommissions(r.phone,Number(r.amount)||0)}}
 if(status==='Validée'&&was!=='Validée'&&r.type==='Retrait Wave'){
- const u=db.users.find(x=>x.phone===r.phone);
+ const u=findUserForRequest(r);
  if(u){
   const amt=Number(r.amount)||0;
   const fee=Number(r.fee)||Math.round(amt*0.01);
