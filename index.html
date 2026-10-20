@@ -179,11 +179,11 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 
 <section id="recharge" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Recharger le compte</h2><p class="subtext">Moyen de paiement : Wave uniquement</p></div></div>
 <div class="panel"><h3>1. Choisir le montant du dépôt</h3><div class="amount-grid" id="depositChoices"><button class="amount-option" onclick="chooseAmount(1000,this)">1 000 F</button><button class="amount-option" onclick="chooseAmount(2000,this)">2 000 F</button><button class="amount-option selected" onclick="chooseAmount(5000,this)">5 000 F</button><button class="amount-option" onclick="chooseAmount(10000,this)">10 000 F</button><button class="amount-option" onclick="chooseAmount(25000,this)">25 000 F</button><button class="amount-option" onclick="chooseAmount(50000,this)">50 000 F</button></div><div class="field"><label>Montant personnalisé (FCFA)</label><input id="depositAmount" type="number" min="1000" value="5000" oninput="chosenAmount=Number(this.value)"></div></div>
-<div class="panel" id="depositPaymentOptions"><h3>2. Choisir votre mode de paiement</h3><p class="muted" style="font-size:12px;margin-bottom:14px">Choisissez selon le pays où vous effectuez le paiement. Nous demanderons votre numéro de téléphone avant de continuer.</p><button type="button" class="wide" onclick="startDeposit('CI')" style="background:linear-gradient(100deg,#1599f6,#0756b5);margin-bottom:12px">🇨🇮 Je suis en Côte d’Ivoire — payer sur Wave</button><button type="button" class="wide" onclick="startDeposit('INTL')" style="background:linear-gradient(100deg,#242b3a,#111621);border:1px solid #1599f6;color:#e9f6ff">🌍 Je suis dans un autre pays — envoyer une preuve</button></div>
+<div class="panel" id="depositPaymentOptions"><h3>2. Choisir le moyen de transaction</h3><p class="muted" style="font-size:12px;margin-bottom:14px">Sélectionnez le moyen que vous utiliserez. Pour MTN, la demande sera envoyée à l’administrateur avec la preuve de paiement.</p><button type="button" class="wide" onclick="startDeposit('WAVE')" style="background:linear-gradient(100deg,#1599f6,#0756b5);margin-bottom:10px">🔵 Payer avec Wave</button><button type="button" class="wide" onclick="startDeposit('MTN')" style="background:linear-gradient(100deg,#ffcc00,#d88900);color:#171717">🟡 Payer avec MTN Mobile Money</button></div>
 </section>
 
 <section id="withdraw" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Demande de retrait</h2><p class="subtext">Frais prévus : 1 % (à confirmer avant lancement)</p></div></div>
-<div class="panel"><div class="stats"><div class="stat"><small>Solde disponible</small><strong id="withdrawBalance">0 F</strong></div><div class="stat"><small>Frais estimés</small><strong id="withdrawFee">0 F</strong></div></div><div class="field"><label>Montant demandé (minimum 1 000 FCFA)</label><input id="withdrawAmount" type="number" min="1000" placeholder="Ex. 5000" oninput="calcFee()"></div><div class="field"><label>Numéro Wave du bénéficiaire</label><input id="withdrawPhone" type="tel" placeholder="+225 ..."></div><div class="note">Votre demande sera examinée par l’administrateur. Le retrait est traité après validation.</div><button class="wide" onclick="submitWithdraw()">Envoyer la demande</button></div>
+<div class="panel"><div class="stats"><div class="stat"><small>Solde disponible</small><strong id="withdrawBalance">0 F</strong></div><div class="stat"><small>Frais estimés</small><strong id="withdrawFee">0 F</strong></div></div><div class="field"><label>Montant demandé (minimum 1 000 FCFA)</label><input id="withdrawAmount" type="number" min="1000" placeholder="Ex. 5000" oninput="calcFee()"></div><div class="field"><label>Moyen de retrait</label><select id="withdrawMethod"><option value="Wave">Wave</option><option value="MTN Mobile Money">MTN Mobile Money</option></select></div><div class="field"><label>Numéro du bénéficiaire</label><input id="withdrawPhone" type="tel" placeholder="Numéro Wave ou MTN"></div><div class="note">Votre demande sera examinée par l’administrateur. Le retrait est traité après validation.</div><button class="wide" onclick="submitWithdraw()">Envoyer la demande</button></div>
 </section>
 
 <section id="history" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Historique</h2><p class="subtext">Dépôts, retraits et souscriptions demandés.</p></div></div><div class="panel" id="historyList"><p class="muted">Connectez-vous pour afficher vos demandes.</p></div></section>
@@ -285,11 +285,11 @@ function loadDB(){
 }
 
 
-var CLOUD_BASE='https://crudcrud.com/api/8b7b4bffc4fe4d5d9fa4b92f7265e5d4';
-var CLOUD_USERS=CLOUD_BASE+'/ti_users';
-var CLOUD_REQUESTS=CLOUD_BASE+'/ti_requests';
-var CLOUD_INVESTMENTS=CLOUD_BASE+'/ti_investments';
-var CLOUD_META=CLOUD_BASE+'/ti_meta';
+// Cloud Firestore : noms des collections
+var CLOUD_USERS='Users';
+var CLOUD_REQUESTS='requests';
+var CLOUD_INVESTMENTS='investments';
+var _fsSynced={};
 
 function userKey(u){return String((u&&(u.uid||u.email||u.phone))||'')}
 function reqKey(r){return String((r&&r.id)||'')}
@@ -317,59 +317,46 @@ function mergeByKey(localArr, cloudArr, keyFn){
  return Object.keys(map).map(function(k){return map[k]});
 }
 
-async function cloudGetCollection(url){
+async function fsReady(){
+ try{await waitForFirebase()}catch(e){}
+ return window.firebaseDB||null;
+}
+function fsDocId(k){return encodeURIComponent(String(k)).replace(/\./g,'%2E').slice(0,700)}
+async function cloudGetCollection(col){
  try{
-  const res=await fetch(url+'?t='+Date.now());
-  if(!res.ok)return [];
-  const data=await res.json();
-  return Array.isArray(data)?data:[];
- }catch(e){console.warn('cloud get',url,e);return []}
+  const fs=await fsReady();
+  if(!fs)return [];
+  const snap=await fs.collection(col).get();
+  const out=[];
+  snap.forEach(function(d){out.push(d.data())});
+  return out;
+ }catch(e){console.warn('firestore get',col,e);return []}
+}
+async function fsUpsert(col,key,obj){
+ if(!obj||!key)return;
+ try{
+  const fs=await fsReady();
+  if(!fs)return;
+  const body=JSON.parse(JSON.stringify(obj));
+  delete body._id;
+  if(body.proof&&String(body.proof).length>200000)body.proof='[image]';
+  const sig=JSON.stringify(body);
+  const id=fsDocId(key);
+  if(_fsSynced[col+'/'+id]===sig)return;
+  body.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+  await fs.collection(col).doc(id).set(body,{merge:true});
+  _fsSynced[col+'/'+id]=sig;
+ }catch(e){console.warn('firestore upsert',col,e)}
 }
 async function cloudUpsertUser(u){
  if(!u)return;
- const key=userKey(u);
- if(!key)return;
- try{
-  const all=await cloudGetCollection(CLOUD_USERS);
-  const existing=all.find(function(x){return userKey(x)===key});
-  const body=Object.assign({},u);
-  delete body._id;
-  if(existing&&existing._id){
-   await fetch(CLOUD_USERS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }else{
-   await fetch(CLOUD_USERS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }
- }catch(e){console.warn('upsert user',e)}
+ const body=Object.assign({},u);
+ body.role=body.role||'client';
+ body.investi=(db.requests||[]).some(function(r){return r.phone===u.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée'});
+ return fsUpsert(CLOUD_USERS,userKey(u),body);
 }
-async function cloudUpsertRequest(r){
- if(!r)return;
- try{
-  const all=await cloudGetCollection(CLOUD_REQUESTS);
-  const existing=all.find(function(x){return String(x.id)===String(r.id)});
-  const body=Object.assign({},r);
-  delete body._id;
-  if(body.proof&&String(body.proof).length>200000)body.proof='[image]';
-  if(existing&&existing._id){
-   await fetch(CLOUD_REQUESTS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }else{
-   await fetch(CLOUD_REQUESTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }
- }catch(e){console.warn('upsert req',e)}
-}
-async function cloudUpsertInvestment(inv){
- if(!inv)return;
- try{
-  const all=await cloudGetCollection(CLOUD_INVESTMENTS);
-  const existing=all.find(function(x){return String(x.id)===String(inv.id)});
-  const body=Object.assign({},inv);
-  delete body._id;
-  if(existing&&existing._id){
-   await fetch(CLOUD_INVESTMENTS+'/'+existing._id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }else{
-   await fetch(CLOUD_INVESTMENTS,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-  }
- }catch(e){console.warn('upsert inv',e)}
-}
+async function cloudUpsertRequest(r){return r&&fsUpsert(CLOUD_REQUESTS,reqKey(r),r)}
+async function cloudUpsertInvestment(inv){return inv&&fsUpsert(CLOUD_INVESTMENTS,invKey(inv),inv)}
 
 function saveDB(){
  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.error(e)}
@@ -581,20 +568,32 @@ function startDeposit(mode){
  const a=Number(document.getElementById('depositAmount').value);
  if(!Number.isFinite(a)||a<1000){toast('Le dépôt minimum est de 1 000 FCFA.');return}
  pendingDepositMode=mode;
- modal('Confirmer votre numéro',`<p>Montant du dépôt : <b>${money(a)}</b></p><p>Mode choisi : <b>${mode==='CI'?'Côte d’Ivoire — Wave':'Hors Côte d’Ivoire — preuve de paiement'}</b></p><div class="field"><label>Votre numéro de téléphone</label><input id="depositPhoneConfirm" type="tel" value="${esc(current.phone)}" placeholder="Votre numéro de téléphone" required></div><p class="muted" style="font-size:11px">Vérifiez votre numéro avant de continuer.</p><button class="wide" onclick="confirmDepositPhone(${a})">Continuer</button>`)
+ const label=mode==='WAVE'?'Wave': 'MTN Mobile Money';
+ modal('Confirmer votre numéro',`<p>Montant du dépôt : <b>${money(a)}</b></p><p>Moyen choisi : <b>${label}</b></p><div class="field"><label>Votre numéro de téléphone</label><input id="depositPhoneConfirm" type="tel" value="${esc(current.phone)}" placeholder="Votre numéro de téléphone" required></div><p class="muted" style="font-size:11px">Vérifiez votre numéro avant de continuer.</p><button class="wide" onclick="confirmDepositPhone(${a})">Continuer</button>`)
 }
-function submitDeposit(){startDeposit('CI')}
+function submitDeposit(){startDeposit('WAVE')}
 function confirmDepositPhone(amount){
  const phone=(document.getElementById('depositPhoneConfirm')?.value||'').trim().replace(/[\s()-]/g,'');
  if(phone.length<7){toast('Saisissez un numéro de téléphone valide.');return}
  pendingDeposit={amount,phone};
- if(pendingDepositMode==='CI') payDepositCI(); else showInternationalProof();
+ if(pendingDepositMode==='WAVE') payDepositCI(); else showMTNDepositProof();
+}
+function showMTNDepositProof(){
+ if(!pendingDeposit)return;
+ const d=pendingDeposit;
+ modal('Dépôt MTN Mobile Money',`<p>Montant : <b>${money(d.amount)}</b></p><p>Numéro utilisé : <b>${esc(d.phone)}</b></p><div class="note">Effectuez le paiement MTN Mobile Money selon les coordonnées communiquées par l’administrateur. Joignez ensuite la preuve. Ne confirmez pas un paiement que vous n’avez pas effectué.</div><div class="field"><label>Référence de transaction (facultatif)</label><input id="mtnRef" placeholder="Référence MTN"></div><div class="field"><label>Preuve / remarque</label><input id="mtnProofNote" placeholder="Ex. capture envoyée à l’administrateur"></div><button class="wide" onclick="submitMTNDeposit()">Envoyer la demande MTN</button>`)
+}
+function submitMTNDeposit(){
+ if(!pendingDeposit||!current)return;
+ const d=pendingDeposit,ref=(document.getElementById('mtnRef')?.value||'').trim(),note=(document.getElementById('mtnProofNote')?.value||'').trim();
+ const req={id:Date.now(),type:'Dépôt MTN',phone:d.phone,amount:d.amount,status:'À vérifier',country:current.country||'',email:current.email,uid:current.uid,userName:current.name,transactionRef:ref,proofNote:note,created:new Date().toISOString()};
+ db.requests.push(req);saveDB();renderHistory();renderAdmin();closeModal();pendingDeposit=null;toast('Demande MTN envoyée. Elle reste en attente de validation par l’administrateur.');
 }
 function payDepositCI(){
  if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
  const d=pendingDeposit;
- db.requests.push({id:Date.now(),type:'Dépôt Wave CI',phone:d.phone,amount:d.amount,status:'À vérifier',country:'Côte d’Ivoire',email:current&&current.email,uid:current&&current.uid,userName:current&&current.name,created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();closeModal();
- window.open(db.wave||WAVE,'_blank','noopener');toast('Lien Wave ouvert. Votre dépôt sera validé après vérification.');setTimeout(function(){saveDB()},500);pendingDeposit=null;pendingDepositMode='';
+ db.requests.push({id:Date.now(),type:'Dépôt Wave',phone:d.phone,amount:d.amount,status:'À vérifier',country:current&&current.country||'Côte d’Ivoire',email:current&&current.email,uid:current&&current.uid,userName:current&&current.name,created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();closeModal();
+ window.open(db.wave||WAVE,'_blank','noopener');toast('Lien Wave ouvert. Votre dépôt sera validé après vérification.');pendingDeposit=null;
 }
 function showInternationalProof(){
  if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
@@ -625,7 +624,7 @@ function submitInternationalProof(){
  renderHistory();renderAdmin();closeModal();pendingDeposit=null;pendingProofData='';toast('Preuve envoyée. Le dépôt sera validé après vérification administrateur.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
-function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim();if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro Wave.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}db.requests.push({id:Date.now(),type:'Retrait Wave',phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();toast('Demande de retrait envoyée. Traitement en cours.')}
+function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name});saveDB();renderHistory();renderAdmin();toast('Demande de retrait '+method+' envoyée. En attente de validation.')}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
  const hasDeposit=db.requests.some(r=>r.phone===current.phone&&r.type.startsWith('Dépôt Wave')&&r.status==='Validée');
@@ -684,7 +683,7 @@ function renderAdmin(){
  reqs.forEach(function(r){if(r.type&&r.type.indexOf('Souscription')===0&&r.status==='Validée'&&r.phone)investedPhones.add(r.phone)});
  const investedUsers=users.filter(function(u){return investedPhones.has(u.phone)});
  const notInvestedUsers=users.filter(function(u){return !investedPhones.has(u.phone)});
- const pendingWithdrawals=reqs.filter(function(r){return r.type==='Retrait Wave'&&!['Validée','Refusée'].includes(r.status)});
+ const pendingWithdrawals=reqs.filter(function(r){return r.type&&r.type.indexOf('Retrait ')===0&&!['Validée','Refusée'].includes(r.status)});
  adminUsers.textContent=users.length;
  var elInv=document.getElementById('adminInvestedCount');if(elInv)elInv.textContent=investedUsers.length;
  var elNot=document.getElementById('adminNotInvestedCount');if(elNot)elNot.textContent=notInvestedUsers.length;
@@ -722,7 +721,7 @@ function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===
   toast('Dépôt validé mais client introuvable (vérifiez le numéro).');
  }
 }if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Souscription')){const u=findUserForRequest(r);if(u){u.deposit=Math.max(0,(Number(u.deposit)||0)-Number(r.amount||0));if(current&&current.phone===u.phone)current=u}if(!Array.isArray(db.investments))db.investments=[];const already=db.investments.some(inv=>inv.requestId===r.id);if(!already){db.investments.push({id:Date.now()+Math.floor(Math.random()*1000),requestId:r.id,phone:r.phone,type:r.type,amount:Number(r.amount)||0,daily:Number(r.daily)||0,days:Number(r.days)||0,longTerm:!!r.longTerm,startDate:new Date().toISOString(),status:'active',credited:false});payReferralCommissions(r.phone,Number(r.amount)||0)}}
-if(status==='Validée'&&was!=='Validée'&&r.type==='Retrait Wave'){
+if(status==='Validée'&&was!=='Validée'&&r.type&&r.type.indexOf('Retrait ')===0){
  const u=findUserForRequest(r);
  if(u){
   const amt=Number(r.amount)||0;
@@ -731,7 +730,7 @@ if(status==='Validée'&&was!=='Validée'&&r.type==='Retrait Wave'){
   if(current&&current.phone===u.phone)current=u;
  }
 }
-if(status==='Refusée'&&was!=='Refusée'&&r.type==='Retrait Wave'){
+if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0){
  /* solde inchangé si refus */
 }
 saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
@@ -1003,6 +1002,7 @@ if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
 <!-- Firebase Authentication (compat - chargement fiable) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   const firebaseConfig={
@@ -1039,6 +1039,7 @@ if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
       const auth=firebase.auth();
       auth.languageCode='fr';
       window.firebaseApp=app;
+      try{window.firebaseDB=firebase.firestore();}catch(e){console.error('Firestore indisponible',e)}
       window.firebaseEmailAuth=auth;
       window.firebaseAuthError=mapAuthError;
       window.firebaseEmailRegister=function(email,pass){return auth.createUserWithEmailAndPassword(email,pass).then(function(cred){return cred.user});};
