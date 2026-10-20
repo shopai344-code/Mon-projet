@@ -150,7 +150,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
   <div class="auth-card">
     <div class="auth-tabs"><button id="authLoginTab" class="auth-tab active" onclick="showAuth('login')">Se connecter</button><button id="authRegisterTab" class="auth-tab" onclick="showAuth('register')">Créer un compte</button></div>
     <div id="authLoginForm" class="auth-form"><h2>Bon retour</h2><p class="auth-desc">Connectez-vous avec votre adresse e-mail et votre mot de passe.</p><div class="field"><label>Adresse e-mail (Gmail)</label><input id="authLoginEmail" type="email" autocomplete="email" inputmode="email" placeholder="exemple@gmail.com"></div><div class="field"><label>Mot de passe</label><input id="authLoginPass" type="password" autocomplete="current-password" placeholder="Votre mot de passe"></div><button class="wide" id="loginButton" onclick="login()">Se connecter</button><p class="auth-foot"><span onclick="resetPassword()" style="cursor:pointer;text-decoration:underline">Mot de passe oublié ?</span></p><p class="auth-foot">Nouveau sur la plateforme ? <strong onclick="showAuth('register')" style="cursor:pointer">Créer un compte</strong></p></div>
-    <div id="authRegisterForm" class="auth-form hidden"><h2>Créer votre compte</h2><p class="auth-desc">Inscrivez-vous avec votre adresse e-mail.</p><div class="field"><label>Nom complet</label><input id="authRegName" autocomplete="name" placeholder="Nom et prénom"></div><div class="field"><label>Pays</label><select id="authRegCountry"><option>Côte d’Ivoire</option><option>Bénin</option><option>Togo</option><option>Burkina Faso</option><option>Autre</option></select></div><div class="field"><label>Téléphone (numéro Wave)</label><input id="authRegPhone" type="tel" autocomplete="tel" placeholder="Ex. 0566219780"></div><div class="field"><label>Adresse e-mail (Gmail)</label><input id="authRegEmail" type="email" autocomplete="email" inputmode="email" placeholder="exemple@gmail.com"></div><div class="field"><label>Mot de passe (6 caractères minimum)</label><input id="authRegPass" type="password" autocomplete="new-password" placeholder="Choisissez un mot de passe"></div><div class="field"><label>Confirmer le mot de passe</label><input id="authRegPass2" type="password" autocomplete="new-password" placeholder="Retapez le mot de passe"></div><button class="wide" id="registerButton" onclick="register()">Créer mon compte</button><p class="auth-foot">Déjà inscrit ? <strong onclick="showAuth('login')" style="cursor:pointer">Se connecter</strong></p></div>
+    <div id="authRegisterForm" class="auth-form hidden"><h2>Créer votre compte</h2><p class="auth-desc">Inscrivez-vous avec votre adresse e-mail.</p><div class="field"><label>Nom complet</label><input id="authRegName" autocomplete="name" placeholder="Nom et prénom"></div><div class="field"><label>Pays</label><select id="authRegCountry" onchange="updatePhoneHint()"><option>Côte d’Ivoire</option><option>Burkina Faso</option><option>Sénégal</option><option>Mali</option><option>Bénin</option><option>Autre</option></select></div><div class="field"><label>Téléphone (numéro Wave)</label><input id="authRegPhone" type="tel" autocomplete="tel" placeholder="Ex. 0566219780"></div><div class="field"><label>Adresse e-mail (Gmail)</label><input id="authRegEmail" type="email" autocomplete="email" inputmode="email" placeholder="exemple@gmail.com"></div><div class="field"><label>Mot de passe (6 caractères minimum)</label><input id="authRegPass" type="password" autocomplete="new-password" placeholder="Choisissez un mot de passe"></div><div class="field"><label>Confirmer le mot de passe</label><input id="authRegPass2" type="password" autocomplete="new-password" placeholder="Retapez le mot de passe"></div><button class="wide" id="registerButton" onclick="register()">Créer mon compte</button><p class="auth-foot">Déjà inscrit ? <strong onclick="showAuth('login')" style="cursor:pointer">Se connecter</strong></p></div>
   </div><div class="auth-foot">TECHNOLOGIE INVESTI · Accès réservé aux utilisateurs connectés</div>
 </div>
 <div class="app gated">
@@ -177,9 +177,10 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="formcols" style="margin-bottom:12px"><button class="mini-btn" onclick="renderProducts(30)">Durée 30 jours</button><button class="mini-btn" onclick="renderProducts(120)">Durée 120 jours</button></div><div class="product-hero"><div class="hero-glow"></div><div><span class="pill">TECHNOLOGIE · SÉRIE PREMIUM</span><h3>Audio nouvelle génération</h3><p>Écouteurs sans fil · design futuriste · fiche du plan détaillée</p></div><div class="hero-ear">🎧</div></div><div id="allProducts" class="product-list"></div>
 <div class="note">Choisissez un plan adapté à votre budget. Les gains sont versés selon la durée indiquée.</div></section>
 
-<section id="recharge" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Recharger le compte</h2><p class="subtext">Moyen de paiement : Wave uniquement</p></div></div>
-<div class="panel"><h3>1. Choisir le montant du dépôt</h3><div class="amount-grid" id="depositChoices"><button class="amount-option" onclick="chooseAmount(1000,this)">1 000 F</button><button class="amount-option" onclick="chooseAmount(2000,this)">2 000 F</button><button class="amount-option selected" onclick="chooseAmount(5000,this)">5 000 F</button><button class="amount-option" onclick="chooseAmount(10000,this)">10 000 F</button><button class="amount-option" onclick="chooseAmount(25000,this)">25 000 F</button><button class="amount-option" onclick="chooseAmount(50000,this)">50 000 F</button></div><div class="field"><label>Montant personnalisé (FCFA)</label><input id="depositAmount" type="number" min="1000" value="5000" oninput="chosenAmount=Number(this.value)"></div></div>
-<div class="panel" id="depositPaymentOptions"><h3>2. Choisir le moyen de transaction</h3><p class="muted" style="font-size:12px;margin-bottom:14px">Sélectionnez le moyen que vous utiliserez. Pour MTN, la demande sera envoyée à l’administrateur avec la preuve de paiement.</p><button type="button" class="wide" onclick="startDeposit('WAVE')" style="background:linear-gradient(100deg,#1599f6,#0756b5);margin-bottom:10px">🔵 Payer avec Wave</button><button type="button" class="wide" onclick="startDeposit('MTN')" style="background:linear-gradient(100deg,#ffcc00,#d88900);color:#171717">🟡 Payer avec MTN Mobile Money</button></div>
+<section id="recharge" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Recharger le compte</h2><p class="subtext">Choisissez votre moyen de paiement</p></div></div>
+<div class="panel" id="depositPaymentOptions"><h3>Comment voulez-vous payer ?</h3><p class="muted" style="font-size:12px;margin-bottom:14px">Appuyez sur votre moyen de paiement. Nous vous demanderons ensuite votre numéro, puis le montant.</p>
+<button type="button" onclick="startDeposit('WAVE')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:12px;border-radius:14px;background:linear-gradient(100deg,#1599f6,#0756b5);color:#fff;font-weight:800;font-size:16px;text-align:left"><span id="logoWave"></span><span>Payer avec Wave<br><small style="font-weight:500;opacity:.85">Côte d’Ivoire, Sénégal, Mali, Burkina…</small></span></button>
+<button type="button" onclick="startDeposit('MTN')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:linear-gradient(100deg,#ffcc00,#e0a000);color:#171717;font-weight:800;font-size:16px;text-align:left"><span id="logoMtn"></span><span>Payer avec MTN Mobile Money<br><small style="font-weight:600;opacity:.75">Tous les pays</small></span></button></div>
 </section>
 
 <section id="withdraw" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Demande de retrait</h2><p class="subtext">Frais prévus : 1 % (à confirmer avant lancement)</p></div></div>
@@ -418,7 +419,7 @@ const PLAN120=[
 function productHTML(plan,i,longTerm=false){const img=EAR_IMAGES[i%EAR_IMAGES.length],total=plan.daily*plan.days,final=plan.price+total;return `<div class="product product-modern"><div class="product-art-wrap"><img class="product-art" src="${img}" alt="Écouteurs sans fil futuristes" loading="eager" ></div><div class="product-info"><div class="product-titleline"><strong>${longTerm?'LONG TERME':'PLAN VIP'} ${i+1}</strong><span class="pill">${plan.days} J</span></div><small>Écouteurs haute technologie</small><div class="product-price">Dépôt : ${money(plan.price)}</div><div class="earning-grid"><div><small>Gain quotidien</small><b>${money(plan.daily)}</b></div><div><small>Gains totaux</small><b>${money(total)}</b></div><div><small>Capital + gains</small><b>${money(final)}</b></div><div><small>Durée du plan</small><b>${plan.days} jours</b></div></div></div><button class="smallbtn" onclick="askPlan(${plan.price},${plan.days},${i+1},${plan.daily},${total},${longTerm})">Investir</button></div>`}
 function renderProducts(days=30){duration=Number(days);const arr=duration===30?PLAN30:PLAN120;allProducts.innerHTML=arr.map((p,i)=>productHTML(p,i,duration===120)).join('')}
 function renderHome(){processMaturedInvestments();hello.textContent=current?'Bonjour, '+current.name:'Bonjour, invité';homeBalance.textContent=money(current?current.deposit+current.withdraw:0);homeProducts.innerHTML=PLAN30.slice(0,4).map((p,i)=>productHTML(p,i,false)).join('');const rs=current?db.requests.filter(r=>r.phone===current.phone).slice(-3).reverse():[];homeHistory.innerHTML=rs.length?rs.map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleDateString('fr-FR')}</small></span><span>${money(r.amount)}<br><span class="status">${esc(r.status)}</span></span></div>`).join(''):'<div class="muted" style="font-size:11px">Aucune activité pour le moment.</div>'}
-function askPlan(price,days,vip,daily=0,total=0,longTerm=false){if(!current){toast('Connectez-vous pour continuer.');showAuth('login');authScreen.style.display='flex';document.querySelector('.app').classList.add('gated');return}const approvedDeposit=db.requests.some(r=>r.phone===current.phone&&r.type.startsWith('Dépôt Wave')&&r.status==='Validée');if(!approvedDeposit){toast('Vous devez effectuer un dépôt Wave et attendre sa validation avant tout investissement.');go('recharge');return}if((Number(current.deposit)||0)<price){toast('Votre dépôt validé disponible est insuffisant pour ce plan.');go('recharge');return}modal((longTerm?'Plan long terme ':'Plan VIP ')+vip,`<p>Dépôt initial : <b>${money(price)}</b></p><p>Gain quotidien quotidien du plan : <b>${money(daily)}</b></p><p>Durée : <b>${days} jours</b></p><p>Gains totaux calculés : <b>${money(total)}</b></p><p>Capital + gains calculés : <b>${money(price+total)}</b></p><div class="note">Vérifiez bien le montant, la durée et le gain quotidien avant de confirmer votre investissement.</div><button class="wide" onclick="addRequest('Souscription '+( ${JSON.stringify(longTerm)} ? 'long terme ':'VIP ')+${vip},${price},${daily},${days},${JSON.stringify(!!longTerm)});closeModal()">Confirmer l’investissement</button>`)}
+function askPlan(price,days,vip,daily=0,total=0,longTerm=false){if(!current){toast('Connectez-vous pour continuer.');showAuth('login');authScreen.style.display='flex';document.querySelector('.app').classList.add('gated');return}const approvedDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN)/.test(r.type)&&r.status==='Validée');if(!approvedDeposit){toast('Vous devez effectuer un dépôt Wave et attendre sa validation avant tout investissement.');go('recharge');return}if((Number(current.deposit)||0)<price){toast('Votre dépôt validé disponible est insuffisant pour ce plan.');go('recharge');return}modal((longTerm?'Plan long terme ':'Plan VIP ')+vip,`<p>Dépôt initial : <b>${money(price)}</b></p><p>Gain quotidien quotidien du plan : <b>${money(daily)}</b></p><p>Durée : <b>${days} jours</b></p><p>Gains totaux calculés : <b>${money(total)}</b></p><p>Capital + gains calculés : <b>${money(price+total)}</b></p><div class="note">Vérifiez bien le montant, la durée et le gain quotidien avant de confirmer votre investissement.</div><button class="wide" onclick="addRequest('Souscription '+( ${JSON.stringify(longTerm)} ? 'long terme ':'VIP ')+${vip},${price},${daily},${days},${JSON.stringify(!!longTerm)});closeModal()">Confirmer l’investissement</button>`)}
 function showAuth(which){const isLogin=which==='login';authLoginForm.classList.toggle('hidden',!isLogin);authRegisterForm.classList.toggle('hidden',isLogin);authLoginTab.classList.toggle('active',isLogin);authRegisterTab.classList.toggle('active',!isLogin)}
 
 var cloudRefreshTimer=null;
@@ -445,13 +446,37 @@ function enterApp(){
    const refreshed=db.users.find(x=> (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed)current=refreshed;
   }
-  renderAccount();renderHome();go('home');startCloudRefresh();showWelcomeMessage();
+  renderAccount();renderHome();go('home');startCloudRefresh();showWelcomeMessage();setTimeout(resumePendingDeposit,800);
  }).catch(function(){renderAccount();renderHome();go('home');showWelcomeMessage()});
 }
 function showWelcome(){enterApp()}
 function showWelcomeMessage(){modalRoot.innerHTML=`<div class="modalback"><div class="modal welcome-modal" style="padding:0;overflow:hidden;background:#fff;color:#292637;border-radius:24px;border:0"><div style="padding:34px 20px;background:linear-gradient(135deg,#ff3347,#b90d25);text-align:center;color:white"><div style="font-size:46px;font-weight:1000;letter-spacing:-3px">TI</div><div style="font-weight:900;font-size:18px">TECHNOLOGIE INVESTI</div></div><div style="padding:24px 22px 22px;text-align:center"><h2 style="font-size:23px;margin:0 0 12px;color:#292637">🎉 Bienvenue${current&&current.name?' '+esc(current.name):''} !</h2><p style="font-size:15px;line-height:1.6;color:#777482;margin:0 0 20px">Votre ${current&&current.created?'compte':'session'} est prêt. Découvrez votre espace, consultez les conditions des plans et suivez les annonces officielles.</p><div style="text-align:left;font-size:14px;line-height:1.7;color:#393746;margin-bottom:20px"><p>🚀 <b>1.</b> Votre accès à l’espace client est ouvert.</p><p>💰 <b>2.</b> Consultez les dépôts et les conditions des plans avant toute demande.</p><p>🔥 <b>3.</b> Rejoignez notre groupe Telegram pour recevoir les actualités et annonces.</p></div><a href="https://t.me/+CzO9jS2-CM1lMzBk" target="_blank" rel="noopener noreferrer" style="display:block;padding:16px 12px;background:#fff0f1;color:#b90d25;border-radius:14px;font-weight:900;margin-bottom:12px">✈️ Rejoindre le groupe Telegram</a><button class="wide" style="margin:0;padding:16px;background:linear-gradient(90deg,#ff3347,#c20f2b)" onclick="closeModal()">J’AI COMPRIS</button><p style="font-size:10px;color:#888;margin:13px 0 0">Bienvenue sur votre espace client.</p></div></div></div>`}
-function validateFirebasePhone(p){if(!/^\+[1-9]\d{7,14}$/.test(p))return 'Numéro invalide. Utilisez le format international, par exemple +2250566219780.';const r={'+225':[10,'Côte d’Ivoire : +225 suivi de 10 chiffres (ex. +2250566219780). Votre numéro commence par 01, 05 ou 07.'],'+229':[10,'Bénin : +229 suivi de 10 chiffres (ex. +2290197000000).'],'+228':[8,'Togo : +228 suivi de 8 chiffres.'],'+226':[8,'Burkina Faso : +226 suivi de 8 chiffres.']};for(const k in r){if(p.startsWith(k)){const n=p.length-k.length;if(n!==r[k][0])return 'Numéro incomplet ou trop long ('+n+' chiffres après '+k+'). '+r[k][1];}}return '';}
-function normalizeFirebasePhone(raw,country){let phone=String(raw||'').trim().replace(/[\s().-]/g,'');if(phone.startsWith('00'))phone='+'+phone.slice(2);if(phone.startsWith('+'))return phone;if(/^225\d+$/.test(phone))return '+'+phone;if(/^0\d{9}$/.test(phone) && country==='Côte d’Ivoire')return '+225'+phone;if(/^\d{8}$/.test(phone) && country==='Côte d’Ivoire')return '+225'+phone;return phone;}
+const PHONE_COUNTRIES={'Côte d’Ivoire':['225',[10]],'Burkina Faso':['226',[8]],'Sénégal':['221',[9]],'Mali':['223',[8]],'Bénin':['229',[10]]};
+function updatePhoneHint(){const c=PHONE_COUNTRIES[authRegCountry.value];authRegPhone.placeholder=c?('Ex. +'+c[0]+' ou numéro local'):'Ex. +233241234567 (indicatif du pays obligatoire)'}
+function normalizeFirebasePhone(raw,country){
+ let phone=String(raw||'').trim().replace(/[\s().-]/g,'');
+ if(phone.startsWith('00'))phone='+'+phone.slice(2);
+ if(phone.startsWith('+'))return phone;
+ const c=PHONE_COUNTRIES[country];
+ if(!c||!/^\d+$/.test(phone))return phone;
+ const dial=c[0],lens=c[1];
+ // le numéro contient déjà l’indicatif (ex. 22670123456)
+ if(phone.startsWith(dial)&&lens.includes(phone.length-dial.length))return '+'+phone;
+ // numéro local complet (ex. 05632514 au Burkina, 0566219780 en Côte d’Ivoire)
+ if(lens.includes(phone.length))return '+'+dial+phone;
+ // numéro avec 0 initial en trop (ex. 0612345678 en France)
+ if(phone.startsWith('0')&&lens.includes(phone.length-1))return '+'+dial+phone.slice(1);
+ return '+'+dial+phone.replace(/^0+/,'');
+}
+function validateFirebasePhone(p){
+ if(!/^\+[1-9]\d{7,14}$/.test(p))return 'Numéro invalide. Vérifiez votre pays, ou saisissez le numéro avec l’indicatif international (ex. +22670123456).';
+ const keys=Object.keys(PHONE_COUNTRIES).sort(function(a,b){return PHONE_COUNTRIES[b][0].length-PHONE_COUNTRIES[a][0].length});
+ const sel=(typeof authRegCountry!=='undefined'&&authRegCountry)?authRegCountry.value:'';
+ const c=PHONE_COUNTRIES[sel];
+ // contrôle de longueur uniquement si le numéro correspond au pays choisi
+ if(c&&p.startsWith('+'+c[0])){const n=p.length-1-c[0].length;if(!c[1].includes(n))return sel+' : +'+c[0]+' doit être suivi de '+c[1].join(' ou ')+' chiffres (vous en avez '+n+').';}
+ return '';
+}
 function validEmail(e){return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)}
 function setBusy(id,on){const b=document.getElementById(id);if(b){b.disabled=on;b.classList.toggle('is-loading',on)}}
 
@@ -561,44 +586,76 @@ async function resetPassword(){
  try{await waitForFirebase();await window.firebaseResetPassword(email);toast('Un e-mail de réinitialisation vous a été envoyé (vérifiez aussi les spams).')}catch(e){toast((window.firebaseAuthError&&window.firebaseAuthError(e))||e.message||'Erreur')}}
 function logout(){try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}current=null;renderAccount();renderHome();document.querySelector('.app')?.classList.add('gated');const screen=document.getElementById('authScreen');if(screen)screen.style.display='flex';showAuth('login');const oldPass=document.getElementById('authLoginPass');if(oldPass)oldPass.value='';if(typeof toast==='function')toast('Déconnexion effectuée.')}
 function renderAccount(){loggedOut.classList.toggle('hidden',!!current);loggedIn.classList.toggle('hidden',!current);if(current){accountName.textContent=current.name;accountPhone.textContent=current.phone+' · '+current.country;accountDeposit.textContent=money(current.deposit);accountWithdraw.textContent=money(current.withdraw)}}
-function chooseAmount(n,el){chosenAmount=n;depositAmount.value=n;document.querySelectorAll('.amount-option').forEach(x=>x.classList.remove('selected'));el.classList.add('selected')}
-let pendingDeposit=null, pendingProofData='', pendingDepositMode='';
+const PAY_NUMBER='0566219780',PAY_NAME='TECHNOLOGIE INVESTI',PENDING_KEY='ti_pending_deposit';
+let pendingDeposit=null,pendingProofData='',pendingDepositMode='';
+function waveLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Wave"><rect width="48" height="48" rx="12" fill="#1DC8FF"/><path d="M8 20c4-6 8-6 12 0s8 6 12 0 6-4 8-3M8 31c4-6 8-6 12 0s8 6 12 0 6-4 8-3" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>'}
+function mtnLogo(n){n=n||48;return '<svg width="'+Math.round(n*1.25)+'" height="'+n+'" viewBox="0 0 60 48" aria-label="MTN"><ellipse cx="30" cy="24" rx="29" ry="22" fill="#FFCB05" stroke="#171717" stroke-width="2"/><text x="30" y="30" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="18" fill="#171717">MTN</text></svg>'}
+(function(){const w=document.getElementById('logoWave'),m=document.getElementById('logoMtn');if(w)w.innerHTML=waveLogo(46);if(m)m.innerHTML=mtnLogo(40)})();
+function isCI(){return /ivoire/i.test((current&&current.country)||'')}
+function savePendingDeposit(step){try{localStorage.setItem(PENDING_KEY,JSON.stringify({step:step,mode:pendingDepositMode,phone:pendingDeposit&&pendingDeposit.phone,amount:pendingDeposit&&pendingDeposit.amount,uid:current&&current.uid,t:Date.now()}))}catch(e){}}
+function clearPendingDeposit(){try{localStorage.removeItem(PENDING_KEY)}catch(e){}}
+function methodLabel(){return pendingDepositMode==='WAVE'?'Wave':'MTN Mobile Money'}
+function methodLogo(n){return pendingDepositMode==='WAVE'?waveLogo(n):mtnLogo(n)}
 function startDeposit(mode){
  if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}
- const a=Number(document.getElementById('depositAmount').value);
- if(!Number.isFinite(a)||a<1000){toast('Le dépôt minimum est de 1 000 FCFA.');return}
- pendingDepositMode=mode;
- const label=mode==='WAVE'?'Wave': 'MTN Mobile Money';
- modal('Confirmer votre numéro',`<p>Montant du dépôt : <b>${money(a)}</b></p><p>Moyen choisi : <b>${label}</b></p><div class="field"><label>Votre numéro de téléphone</label><input id="depositPhoneConfirm" type="tel" value="${esc(current.phone)}" placeholder="Votre numéro de téléphone" required></div><p class="muted" style="font-size:11px">Vérifiez votre numéro avant de continuer.</p><button class="wide" onclick="confirmDepositPhone(${a})">Continuer</button>`)
+ pendingDepositMode=mode;pendingProofData='';pendingDeposit=null;
+ modal('Votre numéro de téléphone',`<div style="text-align:center;margin:6px 0 12px">${methodLogo(54)}</div><p style="text-align:center">Moyen choisi : <b>${methodLabel()}</b></p><div class="field"><label>Votre numéro de téléphone</label><input id="depositPhoneConfirm" type="tel" value="${esc(current.phone)}" placeholder="Votre numéro de téléphone"></div><p class="muted" style="font-size:11px">Vérifiez votre numéro avant de continuer.</p><button class="wide" onclick="confirmDepositPhone()">Continuer</button>`)
 }
 function submitDeposit(){startDeposit('WAVE')}
-function confirmDepositPhone(amount){
+function confirmDepositPhone(){
  const phone=(document.getElementById('depositPhoneConfirm')?.value||'').trim().replace(/[\s()-]/g,'');
  if(phone.length<7){toast('Saisissez un numéro de téléphone valide.');return}
- pendingDeposit={amount,phone};
- if(pendingDepositMode==='WAVE') payDepositCI(); else showMTNDepositProof();
+ pendingDeposit={phone:phone};showDepositAmount();
 }
-function showMTNDepositProof(){
- if(!pendingDeposit)return;
- const d=pendingDeposit;
- modal('Dépôt MTN Mobile Money',`<p>Montant : <b>${money(d.amount)}</b></p><p>Numéro utilisé : <b>${esc(d.phone)}</b></p><div class="note">Effectuez le paiement MTN Mobile Money selon les coordonnées communiquées par l’administrateur. Joignez ensuite la preuve. Ne confirmez pas un paiement que vous n’avez pas effectué.</div><div class="field"><label>Référence de transaction (facultatif)</label><input id="mtnRef" placeholder="Référence MTN"></div><div class="field"><label>Preuve / remarque</label><input id="mtnProofNote" placeholder="Ex. capture envoyée à l’administrateur"></div><button class="wide" onclick="submitMTNDeposit()">Envoyer la demande MTN</button>`)
+function showDepositAmount(){
+ const q=[1000,2000,5000,10000,25000,50000].map(n=>`<button type="button" class="amount-option" onclick="document.getElementById('depositAmountInput').value=${n}">${n.toLocaleString('fr-FR')} F</button>`).join('');
+ modal('Montant du dépôt',`<div style="text-align:center;margin:6px 0 12px">${methodLogo(54)}</div><div class="amount-grid" style="margin-bottom:10px">${q}</div><div class="field"><label>Montant à déposer (FCFA) — minimum 1 000</label><input id="depositAmountInput" type="number" min="1000" value="5000"></div><button class="wide" onclick="confirmDepositAmount()">Continuer</button>`)
 }
-function submitMTNDeposit(){
- if(!pendingDeposit||!current)return;
- const d=pendingDeposit,ref=(document.getElementById('mtnRef')?.value||'').trim(),note=(document.getElementById('mtnProofNote')?.value||'').trim();
- const req={id:Date.now(),type:'Dépôt MTN',phone:d.phone,amount:d.amount,status:'À vérifier',country:current.country||'',email:current.email,uid:current.uid,userName:current.name,transactionRef:ref,proofNote:note,created:new Date().toISOString()};
- db.requests.push(req);saveDB();renderHistory();renderAdmin();closeModal();pendingDeposit=null;toast('Demande MTN envoyée. Elle reste en attente de validation par l’administrateur.');
+function confirmDepositAmount(){
+ const a=Number(document.getElementById('depositAmountInput')?.value);
+ if(!Number.isFinite(a)||a<1000){toast('Le dépôt minimum est de 1 000 FCFA.');return}
+ pendingDeposit.amount=a;showDepositInstructions();
+}
+function payBox(){
+ return `<div style="padding:14px;margin:12px 0;border:1px solid #168ff0;border-radius:14px;background:linear-gradient(135deg,#082b4d,#0a172a)"><p style="margin:0 0 6px;font-size:12px">Numéro de téléphone</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:2px;color:#69d8ff">${PAY_NUMBER}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NUMBER}')">Copier le numéro</button></div><p style="margin:14px 0 6px;font-size:12px">Nom d’utilisateur</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:18px;color:#fff">${PAY_NAME}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NAME}')">Copier le nom</button></div></div>`
+}
+function proofField(){
+ return `<div class="field"><label>Capture d’écran de la transaction (obligatoire)</label><input id="depositProofFile" type="file" accept="image/*" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt reste en attente jusqu’à la vérification et la validation par l’administrateur.</p>`
+}
+function showDepositInstructions(){
+ const d=pendingDeposit,head=`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#3a1015;border:1px solid #ff4b5c;font-weight:800;font-size:14px;line-height:1.4">⚠️ Suivez bien les étapes et lisez ceci : c’est obligatoire.</div><p style="margin:0 0 10px">Montant : <b>${money(d.amount)}</b> · ${methodLogo(22)} <b>${methodLabel()}</b></p>`;
+ if(pendingDepositMode==='WAVE'&&isCI()){
+  modal('Paiement Wave',head+`<p style="line-height:1.55">Vous êtes en <b>Côte d’Ivoire</b> : appuyez sur <b>« Payer avec Wave »</b>. Vous serez envoyé directement vers Wave pour payer.</p><p class="muted" style="font-size:12px;line-height:1.5">Après le paiement, revenez sur ce site : nous vous demanderons la <b>capture d’écran de la transaction</b> pour que l’administrateur valide votre dépôt.</p><button class="wide" style="display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(100deg,#1599f6,#0756b5)" onclick="payDepositCI()">${waveLogo(26)} Payer avec Wave</button>`);
+ }else if(pendingDepositMode==='WAVE'){
+  modal('Paiement Wave',head+`<p style="line-height:1.55">Vous n’êtes pas en Côte d’Ivoire : <b>copiez le numéro de téléphone et le nom d’utilisateur</b> ci-dessous, puis allez les <b>coller dans Wave</b> pour payer.</p>`+payBox()+`<p class="muted" style="font-size:12px;line-height:1.5">Vérifiez que le nom affiché dans Wave correspond avant de confirmer. Après le paiement, revenez ici et envoyez la <b>capture d’écran de la transaction</b>.</p>`+proofField());
+ }else{
+  modal('Paiement MTN Mobile Money',head+`<p style="line-height:1.55">Quel que soit votre pays : <b>copiez le numéro et le nom</b> ci-dessous, puis payez avec <b>MTN Mobile Money</b>.</p>`+payBox()+`<p class="muted" style="font-size:12px;line-height:1.5">Après le paiement, envoyez la <b>capture d’écran de la transaction</b>.</p>`+proofField());
+ }
 }
 function payDepositCI(){
- if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
- const d=pendingDeposit;
- db.requests.push({id:Date.now(),type:'Dépôt Wave',phone:d.phone,amount:d.amount,status:'À vérifier',country:current&&current.country||'Côte d’Ivoire',email:current&&current.email,uid:current&&current.uid,userName:current&&current.name,created:new Date().toISOString()});saveDB();renderHistory();renderAdmin();closeModal();
- window.open(db.wave||WAVE,'_blank','noopener');toast('Lien Wave ouvert. Votre dépôt sera validé après vérification.');pendingDeposit=null;
+ if(!pendingDeposit||!pendingDeposit.amount){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
+ savePendingDeposit('proof');
+ window.open(db.wave||WAVE,'_blank','noopener');
+ showProofStep();
 }
-function showInternationalProof(){
- if(!pendingDeposit){toast('Veuillez d’abord choisir le montant et confirmer votre numéro.');return}
- modal('Dépôt hors Côte d’Ivoire',`<p>Montant choisi : <b>${money(pendingDeposit.amount)}</b></p><div class="panel" style="padding:16px;margin:12px 0;border-color:#168ff0;background:linear-gradient(135deg,#082b4d,#0a172a)"><div style="font-weight:800;font-size:16px;margin-bottom:12px">Coordonnées Wave à copier</div><p style="margin:0 0 6px">Nom de la plateforme</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong id="intlPlatformName" style="font-size:20px;color:#fff">TECHNOLOGIE INVESTI</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('TECHNOLOGIE INVESTI')">Copier le nom</button></div><p style="margin:14px 0 6px">Numéro Wave</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:27px;letter-spacing:2px;color:#69d8ff">0566219780</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('0566219780')">Copier le numéro</button></div><p class="muted" style="font-size:12px;margin-top:12px">Ouvrez Wave vous-même, saisissez ces coordonnées et vérifiez que le nom du bénéficiaire affiché correspond avant de confirmer. Si le transfert n’est pas disponible dans votre pays, n’envoyez pas d’argent.</p></div><div class="field"><label>Capture d’écran du reçu de paiement (obligatoire)</label><input id="depositProofFile" type="file" accept="image/*" onchange="previewDepositProof(this)"><small class="muted">Après le transfert, choisissez la capture d’écran du reçu Wave.</small><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitInternationalProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt restera en attente jusqu’à ce que l’administrateur vérifie la preuve et valide la demande.</p>`)
+function showProofStep(){
+ if(!pendingDeposit)return;
+ const reopen=(pendingDepositMode==='WAVE'&&isCI())?`<button type="button" class="smallbtn" style="margin:0 0 12px" onclick="window.open(db.wave||WAVE,'_blank','noopener')">Rouvrir Wave</button>`:'';
+ modal('Envoyer la preuve de paiement',`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#0b2a47;border:1px solid #168ff0;line-height:1.5;font-size:13px">Vous avez payé <b>${money(pendingDeposit.amount)}</b> avec <b>${methodLabel()}</b> ? Ajoutez maintenant la <b>capture d’écran de la transaction</b> pour que l’administrateur valide votre dépôt.</div>${reopen}`+proofField());
 }
+function resumePendingDeposit(){
+ try{
+  if(!current||document.getElementById('depositProofFile'))return;
+  const p=JSON.parse(localStorage.getItem(PENDING_KEY)||'null');
+  if(!p||p.step!=='proof')return;
+  if(p.uid&&current.uid&&p.uid!==current.uid)return;
+  if(Date.now()-(p.t||0)>2*86400000){clearPendingDeposit();return}
+  pendingDeposit={phone:p.phone,amount:p.amount};pendingDepositMode=p.mode;pendingProofData='';
+  go('recharge');showProofStep();
+ }catch(e){}
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)resumePendingDeposit()});
+window.addEventListener('load',function(){setTimeout(resumePendingDeposit,2500)});
 function copyPaymentDetail(value){
  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(value).then(()=>toast('Copié : '+value)).catch(()=>fallbackCopyPayment(value));}
  else fallbackCopyPayment(value);
@@ -612,22 +669,21 @@ function previewDepositProof(input){
  if(!file.type.startsWith('image/')){toast('Choisissez une image ou une capture d’écran.');input.value='';return}
  if(file.size>8*1024*1024){toast('Image trop lourde. Faites une capture plus légère (maximum 8 Mo).');input.value='';return}
  const reader=new FileReader();reader.onload=()=>{
-  const img=new Image();img.onload=()=>{const max=1000,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);pendingProofData=canvas.toDataURL('image/jpeg',0.72);const prev=document.getElementById('proofPreview');if(prev)prev.innerHTML=`<img src="${pendingProofData}" alt="Aperçu de la preuve" style="max-width:100%;max-height:180px;border-radius:10px;border:1px solid #343746">`};img.onerror=()=>toast('Impossible de lire cette image.');img.src=reader.result;
+  const img=new Image();img.onload=()=>{const max=900,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);let q=.7,d=canvas.toDataURL('image/jpeg',q);while(d.length>180000&&q>.3){q-=.1;d=canvas.toDataURL('image/jpeg',q)}pendingProofData=d;const prev=document.getElementById('proofPreview');if(prev)prev.innerHTML=`<img src="${pendingProofData}" alt="Aperçu de la preuve" style="max-width:100%;max-height:180px;border-radius:10px;border:1px solid #343746">`};img.onerror=()=>toast('Impossible de lire cette image.');img.src=reader.result;
  };reader.readAsDataURL(file)
 }
-function submitInternationalProof(){
- if(!current||!pendingDeposit){toast('Session ou demande de dépôt introuvable.');return}
- if(!pendingProofData){toast('Ajoutez la capture d’écran de paiement avant l’envoi.');return}
- const ref=(document.getElementById('depositReference')?.value||'').trim();
- const d=pendingDeposit;
- try{db.requests.push({id:Date.now(),type:'Dépôt Wave international',phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country,reference:ref,proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString()});saveDB()}catch(e){toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
- renderHistory();renderAdmin();closeModal();pendingDeposit=null;pendingProofData='';toast('Preuve envoyée. Le dépôt sera validé après vérification administrateur.');
+function submitDepositProof(){
+ if(!current||!pendingDeposit||!pendingDeposit.amount){toast('Session ou demande de dépôt introuvable.');return}
+ if(!pendingProofData){toast('Ajoutez la capture d’écran de la transaction avant l’envoi.');return}
+ const d=pendingDeposit,type=pendingDepositMode==='MTN'?'Dépôt MTN':(isCI()?'Dépôt Wave':'Dépôt Wave international');
+ try{db.requests.push({id:Date.now(),type:type,phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country||'',proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString()});saveDB()}catch(e){toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
+ renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';toast('Preuve envoyée. Le dépôt sera validé après vérification par l’administrateur.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
 function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name});saveDB();renderHistory();renderAdmin();toast('Demande de retrait '+method+' envoyée. En attente de validation.')}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
- const hasDeposit=db.requests.some(r=>r.phone===current.phone&&r.type.startsWith('Dépôt Wave')&&r.status==='Validée');
+ const hasDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN)/.test(r.type)&&r.status==='Validée');
  amount=Number(amount)||0;
  daily=Number(daily)||0;
  days=Number(days)||0;
@@ -688,7 +744,7 @@ function renderAdmin(){
  var elInv=document.getElementById('adminInvestedCount');if(elInv)elInv.textContent=investedUsers.length;
  var elNot=document.getElementById('adminNotInvestedCount');if(elNot)elNot.textContent=notInvestedUsers.length;
  adminWithdrawals.textContent=pendingWithdrawals.length;
- var elDep=document.getElementById('adminDeposits');if(elDep)elDep.textContent=reqs.filter(function(r){return r.type&&r.type.indexOf('Dépôt Wave')===0}).length;
+ var elDep=document.getElementById('adminDeposits');if(elDep)elDep.textContent=reqs.filter(function(r){return r.type&&/^Dépôt (Wave|MTN)/.test(r.type)}).length;
  if(typeof waveLink!=='undefined'&&waveLink)waveLink.value=db.wave||'';
  const pendingRequests=reqs.filter(function(r){return !['Validée','Refusée'].includes(r.status)});
  adminRequests.innerHTML=pendingRequests.length?'<table><tr><th>Type / client</th><th>Montant</th><th>Actions</th></tr>'+pendingRequests.slice().reverse().map(function(r){
@@ -711,7 +767,7 @@ function renderAdmin(){
   }).join('')+'</table>':'<p class="muted">Aucune capture blog reçue.</p>';
  }
 }
-function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Dépôt Wave')){
+function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&/^Dépôt (Wave|MTN)/.test(r.type)){
  const u=findUserForRequest(r);
  if(u){
   u.deposit=(Number(u.deposit)||0)+Number(r.amount||0);
