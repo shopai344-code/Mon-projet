@@ -236,7 +236,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 </section>
 <section id="blog" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Blog & communauté</h2><p class="subtext">Roue, parrainage et bonus capture</p></div></div>
 <div class="product-hero"><div><span class="pill">TECH INSIGHTS</span><h3>Le hub TECHNOLOGIE INVESTI</h3><p>Actualités, bonus communauté et activités.</p></div><div class="hero-ear">⌁</div></div>
-<div class="panel"><h3>🎡 Roue bonus</h3><p class="muted" style="font-size:11px">Un tour offert par investissement long terme : gagnez 50, 100 ou 150 FCFA.</p><button class="wide" onclick="go('wheel')">Ouvrir la roue bonus ↗</button></div>
+<div class="panel"><h3>🎡 Roue bonus</h3><p class="muted" style="font-size:11px">Un tour offert par investissement long terme : gagnez de 50 à 500 FCFA.</p><button class="wide" onclick="go('wheel')">Ouvrir la roue bonus ↗</button></div>
 <div class="panel"><h3>♧ Parrainer des personnes</h3><p class="muted" style="font-size:11px">Commissions : 5 % · 3 % · 1 % · 0,5 % sur 4 niveaux.</p><button class="wide" onclick="go('referral')">Accéder au parrainage ↗</button></div>
 <div class="panel"><h3>📸 Bonus capture de retrait</h3>
 <p class="muted" style="font-size:12px;line-height:1.55;margin-bottom:10px">Envoyez une <b>capture d'écran de votre retrait</b> et recevez <b style="color:#36c98f">50 FCFA</b> sur votre solde de retrait (1 fois par jour).</p>
@@ -249,7 +249,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>Actualités officielles</h3><p class="muted" style="font-size:11px">Suivez les annonces de la plateforme et le groupe Telegram.</p>
 <a href="https://t.me/+CzO9jS2-CM1lMzBk" target="_blank" rel="noopener" class="wide" style="display:block;text-align:center;margin-top:10px;text-decoration:none">✈️ Groupe Telegram</a>
 </div></section>
-<section id="wheel" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Roue bonus</h2><p class="subtext">1 tour offert par investissement long terme</p></div></div><div class="panel wheel-panel"><div class="wheel-wrap" id="wheelWrap"><div class="wheel-glow"></div><div class="wheel-lights" id="wheelLights"></div><div class="wheel-pointer"></div><div class="wheel-rot" id="wheelRot"><svg id="wheelSvg" viewBox="0 0 300 300" aria-label="Roue bonus"></svg></div><div class="wheel-hub">🎁</div></div><h3>La roue des bonus</h3><p class="muted" style="font-size:11px;line-height:1.5">Gains possibles : <b>50 · 100 · 150 FCFA</b>, pas plus. Le gain est ajouté à votre solde de retrait.<br>Vous avez droit à <b>un seul tour</b> chaque fois que vous faites un <b>investissement long terme</b>.</p><p id="wheelInfo" class="muted" style="font-size:12px;font-weight:700"></p><button class="wide" id="wheelBtn" onclick="spinWheel()">Lancer la roue</button><p id="wheelResult" class="muted" style="text-align:center;font-size:13px;min-height:38px"></p></div></section>
+<section id="wheel" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Roue bonus</h2><p class="subtext">1 tour offert par investissement long terme</p></div></div><div class="panel wheel-panel"><div class="wheel-wrap" id="wheelWrap"><div class="wheel-glow"></div><div class="wheel-lights" id="wheelLights"></div><div class="wheel-pointer"></div><div class="wheel-rot" id="wheelRot"><svg id="wheelSvg" viewBox="0 0 300 300" aria-label="Roue bonus"></svg></div><div class="wheel-hub">🎁</div></div><h3>La roue des bonus</h3><p class="muted" style="font-size:11px;line-height:1.5">Gains possibles : <b>50 · 100 · 200 · 300 · 500 FCFA</b>. Les gros montants affichés sur la roue sont décoratifs. Le gain est ajouté à votre solde de retrait.<br>Vous avez droit à <b>un seul tour</b> chaque fois que vous faites un <b>investissement long terme</b>.</p><p id="wheelInfo" class="muted" style="font-size:12px;font-weight:700"></p><button class="wide" id="wheelBtn" onclick="spinWheel()">Lancer la roue</button><p id="wheelResult" class="muted" style="text-align:center;font-size:13px;min-height:38px"></p></div></section>
 
 <section id="account" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Mon compte</h2><p class="subtext">Informations de votre profil.</p></div></div><div id="loggedOut" class="panel hidden"><p>Vous devez vous connecter pour accéder à votre compte.</p><button class="wide" onclick="logout()">Retour à la connexion</button></div><div id="loggedIn" class="panel"><h3 id="accountName">Mon compte</h3><p class="muted" id="accountPhone"></p><div class="stats"><div class="stat"><small>Solde dépôt</small><strong id="accountDeposit">0 F</strong></div><div class="stat"><small>Solde retrait</small><strong id="accountWithdraw">0 F</strong></div></div><button class="wide" onclick="logout()">Déconnexion</button></div>
 <button class="wide" style="margin-top:10px" onclick="go('investments')">📊 Voir mes investissements</button>
@@ -612,6 +612,7 @@ async function register(){
  if(pass!==pass2){toast('Les deux mots de passe ne sont pas identiques.');return}
  setBusy('registerButton',true);
  try{await waitForFirebase();const user=await window.firebaseEmailRegister(email,pass);
+  try{await loadCloudDB()}catch(e){}
   const u={name,country,phone,email,uid:user.uid,deposit:0,withdraw:0,refEarnings:0,created:new Date().toISOString()};ensureRefCode(u);applySponsorOnRegister(u);
   const k=db.users.findIndex(x=>x.uid===u.uid||x.email===email);if(k>=0)db.users[k]={...db.users[k],...u};else db.users.push(u);
   current=u;welcomeIsRegister=true;
@@ -644,6 +645,7 @@ async function login(){
  try{
   await waitForFirebase();
   const user=await window.firebaseEmailLogin(email,pass);
+  try{await loadCloudDB()}catch(e){}
   let u=db.users.find(x=>x.uid===user.uid||x.email===email);
   if(!u){u={name:email.split('@')[0],country:'',phone:email,email,uid:user.uid,deposit:0,withdraw:0,created:new Date().toISOString()};db.users.push(u);saveDB()}
   else if(!u.uid){u.uid=user.uid;saveDB()}
@@ -873,10 +875,12 @@ if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0
  /* solde inchangé si refus */
 }
 saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
-const WHEEL_SEGMENTS=[50,100,50,150,50,100];
-const WHEEL_ODDS=[{amount:50,weight:65},{amount:100,weight:28},{amount:150,weight:7}];
+// 12 cases : les gros montants (>= 2000) sont de la décoration, ils ne sont JAMAIS tirés (absents de WHEEL_ODDS)
+const WHEEL_SEGMENTS=[50,10000,100,50000,200,5000,300,100000,50,80000,500,2000];
+// Seuls ces gains peuvent tomber (poids = chances sur 100) : plus le montant monte, plus c'est rare
+const WHEEL_ODDS=[{amount:50,weight:50},{amount:100,weight:28},{amount:200,weight:14},{amount:300,weight:6},{amount:500,weight:2}];
 let wheelRotation=0,wheelBusy=false;
-function wheelColors(a){return a===150?['#e4c16d','#2a1c00']:a===100?['#fa3447','#ffffff']:['#1d2330','#ffffff']}
+function wheelColors(a){return a>=2000?['#e4c16d','#2a1c00']:a>=300?['#8b2436','#ffffff']:a>=100?['#fa3447','#ffffff']:['#1d2330','#ffffff']}
 function buildWheel(){
  const svg=document.getElementById('wheelSvg');
  if(!svg||svg.dataset.built)return;
@@ -885,7 +889,7 @@ function buildWheel(){
  WHEEL_SEGMENTS.forEach((amt,i)=>{
   const a0=i*step,a1=(i+1)*step,p0=pt(a0,150),p1=pt(a1,150),c=wheelColors(amt);
   h+=`<path d="M150 150 L${p0[0].toFixed(2)} ${p0[1].toFixed(2)} A150 150 0 0 1 ${p1[0].toFixed(2)} ${p1[1].toFixed(2)} Z" fill="${c[0]}" stroke="#0b0d14" stroke-width="2"/>`;
-  h+=`<g transform="rotate(${(a0+step/2).toFixed(1)} 150 150)"><text x="150" y="62" text-anchor="middle" fill="${c[1]}" font-family="Arial,sans-serif" font-weight="900" font-size="30">${amt}</text><text x="150" y="82" text-anchor="middle" fill="${c[1]}" font-family="Arial,sans-serif" font-weight="700" font-size="13" opacity=".9">FCFA</text></g>`;
+  h+=`<g transform="rotate(${(a0+step/2).toFixed(1)} 150 150)"><text transform="translate(150 108) rotate(-90)" text-anchor="start" fill="${c[1]}" font-family="Arial,sans-serif" font-weight="900" font-size="${String(amt).length>4?21:24}">${amt}</text></g>`;
  });
  svg.innerHTML=h;svg.dataset.built='1';
  const L=document.getElementById('wheelLights');
@@ -1081,7 +1085,7 @@ function renderInvestments(){
 function ensureRefCode(u){
  if(!u)return '';
  if(u.refCode)return u.refCode;
- const code=('TI'+String(u.phone||u.email||'').replace(/\D/g,'').slice(-8)+Math.random().toString(36).slice(2,5)).toUpperCase();
+ const code=('TI'+String(u.phone||u.email||'').replace(/\D/g,'').slice(-8)+(u.uid?String(u.uid).slice(0,3):Math.random().toString(36).slice(2,5))).toUpperCase();
  u.refCode=code;saveDB();return code;
 }
 function getReferralLink(){
@@ -1107,16 +1111,25 @@ function applySponsorOnRegister(u){
  const ref=(localStorage.getItem('ti_pending_ref')||'').trim().toUpperCase();
  if(!ref||!u)return;
  const sponsor=db.users.find(x=>String(x.refCode||'').toUpperCase()===ref);
- if(sponsor&&sponsor.phone!==u.phone){u.sponsorCode=sponsor.refCode;u.sponsorPhone=sponsor.phone;saveDB()}
+ if(ref&&ref!==String(u.refCode||'').toUpperCase()){u.sponsorCode=ref}
+ if(sponsor&&sponsor.phone!==u.phone){u.sponsorCode=sponsor.refCode;u.sponsorPhone=sponsor.phone}
  localStorage.removeItem('ti_pending_ref');
+}
+function findSponsorOf(u){
+ if(!u)return null;
+ let sp=null;
+ if(u.sponsorPhone)sp=db.users.find(x=>x.phone===u.sponsorPhone);
+ if(!sp&&u.sponsorCode){const c=String(u.sponsorCode).toUpperCase();sp=db.users.find(x=>String(x.refCode||'').toUpperCase()===c)}
+ if(sp&&sp.phone===u.phone&&sp.email===u.email)return null;
+ return sp||null;
 }
 function payReferralCommissions(investorPhone,investAmount){
  const rates=REF_RATES;
  let phone=investorPhone;
  for(let level=0;level<rates.length;level++){
   const inv=db.users.find(x=>x.phone===phone);
-  if(!inv||!inv.sponsorPhone)break;
-  const sponsor=db.users.find(x=>x.phone===inv.sponsorPhone);
+  if(!inv)break;
+  const sponsor=findSponsorOf(inv);
   if(!sponsor)break;
   const commission=Math.round(Number(investAmount)*rates[level]);
   if(commission>0){
@@ -1129,11 +1142,16 @@ function payReferralCommissions(investorPhone,investAmount){
  }
  saveDB();
 }
-function renderReferral(){
+async function renderReferral(){
+ renderReferralNow();
+ try{await loadCloudDB();if(current){const f=db.users.find(x=>(x.uid&&x.uid===current.uid)||x.email===current.email);if(f){f.refCode=f.refCode||current.refCode;current=f}}renderReferralNow()}catch(e){}
+}
+function renderReferralNow(){
  if(!current)return;
  const link=getReferralLink();
  const inp=document.getElementById('referralLinkInput');if(inp)inp.value=link;
- const directs=db.users.filter(u=>u.sponsorPhone===current.phone);
+ const myCode=String(current.refCode||'').toUpperCase();
+ const directs=db.users.filter(u=>u!==current&&((u.sponsorPhone&&u.sponsorPhone===current.phone)||(myCode&&String(u.sponsorCode||'').toUpperCase()===myCode)));
  const elC=document.getElementById('refCountDirect');if(elC)elC.textContent=directs.length;
  const elE=document.getElementById('refTotalEarn');if(elE)elE.textContent=money(current.refEarnings||0);
  const list=document.getElementById('refList');
@@ -1179,7 +1197,7 @@ let loaderTimer=null;
 function showGlobalLoader(label='Chargement'){const el=document.getElementById('globalLoader');if(!el)return;const l=el.querySelector('.loader-label');if(l)l.innerHTML=esc(label)+'<span class="loader-dots"></span>';el.classList.add('show');clearTimeout(loaderTimer);loaderTimer=setTimeout(()=>el.classList.remove('show'),1350)}
 // Affiche un chargement pour les boutons de toutes les pages, sans empêcher leur action.
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.disabled||b.closest('#globalLoader'))return;if(b.classList.contains('navitem')||b.dataset.go||b.onclick||b.type==='submit'){showGlobalLoader(b.textContent.trim()||'Chargement');b.classList.add('is-loading');setTimeout(()=>b.classList.remove('is-loading'),950)}},true);
-year.textContent=new Date().getFullYear();captureRefFromUrl();renderProducts(30);showAuth('login');
+year.textContent=new Date().getFullYear();captureRefFromUrl();renderProducts(30);showAuth(localStorage.getItem('ti_pending_ref')?'register':'login');
 if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
 
 </script>
