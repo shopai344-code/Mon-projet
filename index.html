@@ -253,6 +253,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 
 <section id="account" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Mon compte</h2><p class="subtext">Informations de votre profil.</p></div></div><div id="loggedOut" class="panel hidden"><p>Vous devez vous connecter pour accéder à votre compte.</p><button class="wide" onclick="logout()">Retour à la connexion</button></div><div id="loggedIn" class="panel"><h3 id="accountName">Mon compte</h3><p class="muted" id="accountPhone"></p><div class="stats"><div class="stat"><small>Solde dépôt</small><strong id="accountDeposit">0 F</strong></div><div class="stat"><small>Solde retrait</small><strong id="accountWithdraw">0 F</strong></div></div><button class="wide" onclick="logout()">Déconnexion</button></div>
 <button class="wide" style="margin-top:10px" onclick="go('investments')">📊 Voir mes investissements</button>
+<a class="wide" href="https://t.me/+beUsG34stBA3Yjlk" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:12px;background:linear-gradient(90deg,#ff3347,#c20f2b)">💬 Service client TECHNOLOGIE INVEST</a>
 
 </section>
 
@@ -1229,7 +1230,23 @@ if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
       window.firebaseEmailLogin=function(email,pass){return auth.signInWithEmailAndPassword(email,pass).then(function(cred){return cred.user});};
       window.firebaseResetPassword=function(email){return auth.sendPasswordResetEmail(email);};
       window.firebaseSignOut=function(){return auth.signOut();};
-      auth.onAuthStateChanged(function(user){window.firebaseCurrentUser=user;});
+      auth.onAuthStateChanged(async function(user){
+        window.firebaseCurrentUser=user;
+        // Conserve la session Firebase après actualisation; seul un vrai sign-out ramène à la connexion.
+        if(!user){return;}
+        if(current && current.uid===user.uid){return;}
+        try{await loadCloudDB();}catch(e){}
+        let restored=(db.users||[]).find(function(x){return x.uid===user.uid || (user.email && x.email && x.email.toLowerCase()===user.email.toLowerCase());});
+        if(!restored){
+          restored={uid:user.uid,email:user.email||'',name:(user.email||'').split('@')[0]||'Client',country:'',phone:user.email||'',deposit:0,withdraw:0};
+          db.users.push(restored);try{saveDB();}catch(e){}
+        }
+        current=restored;ensureRefCode(current);
+        authScreen.style.display='none';
+        document.querySelector('.app')?.classList.remove('gated');
+        renderAccount();renderHome();renderHistory();go('home');startCloudRefresh();
+        showWelcomeMessage();
+      });
       window.firebaseReady=true;
       console.info('Firebase Authentication e-mail initialisé (compat).');
     }
