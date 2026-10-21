@@ -219,7 +219,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>📸 Bonus capture de retrait</h3>
 <p class="muted" style="font-size:12px;line-height:1.55;margin-bottom:10px">Envoyez une <b>capture d'écran de votre retrait</b> et recevez <b style="color:#36c98f">50 FCFA</b> sur votre solde de retrait (1 fois par compte).</p>
 <div class="field"><label>Capture d'écran du retrait</label>
-<input id="blogProofFile" type="file" accept="image/*" onchange="previewBlogProof(this)">
+<input id="blogProofFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onchange="previewBlogProof(this)">
 <div id="blogProofPreview" style="margin-top:8px"></div></div>
 <button class="wide" onclick="submitBlogProof()">Envoyer et recevoir 50 FCFA</button>
 <p id="blogProofStatus" class="muted" style="font-size:11px;margin-top:8px"></p>
@@ -620,7 +620,7 @@ function payBox(){
  return `<div style="padding:14px;margin:12px 0;border:1px solid #168ff0;border-radius:14px;background:linear-gradient(135deg,#082b4d,#0a172a)"><p style="margin:0 0 6px;font-size:12px">Numéro de téléphone</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:2px;color:#69d8ff">${PAY_NUMBER}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NUMBER}')">Copier le numéro</button></div><p style="margin:14px 0 6px;font-size:12px">Nom d’utilisateur</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:18px;color:#fff">${PAY_NAME}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NAME}')">Copier le nom</button></div></div>`
 }
 function proofField(){
- return `<div class="field"><label>Capture d’écran de la transaction (obligatoire)</label><input id="depositProofFile" type="file" accept="image/*" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt reste en attente jusqu’à la vérification et la validation par l’administrateur.</p>`
+ return `<div class="field"><label>Capture d’écran de la transaction (obligatoire)</label><input id="depositProofFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt reste en attente jusqu’à la vérification et la validation par l’administrateur.</p>`
 }
 function showDepositInstructions(){
  const d=pendingDeposit,head=`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#3a1015;border:1px solid #ff4b5c;font-weight:800;font-size:14px;line-height:1.4">⚠️ Suivez bien les étapes et lisez ceci : c’est obligatoire.</div><p style="margin:0 0 10px">Montant : <b>${money(d.amount)}</b> · ${methodLogo(22)} <b>${methodLabel()}</b></p>`;
