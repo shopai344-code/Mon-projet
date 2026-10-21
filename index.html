@@ -219,12 +219,12 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 </div>
 <div class="panel"><h3>Commissions multi-niveaux</h3>
 <div class="stats">
-<div class="stat"><small>Niveau 1 (direct)</small><strong>10 %</strong></div>
-<div class="stat"><small>Niveau 2</small><strong>5 %</strong></div>
-<div class="stat"><small>Niveau 3</small><strong>2 %</strong></div>
-<div class="stat"><small>Niveau 4</small><strong>1 %</strong></div>
+<div class="stat"><small>Niveau 1 (direct)</small><strong>5 %</strong></div>
+<div class="stat"><small>Niveau 2</small><strong>3 %</strong></div>
+<div class="stat"><small>Niveau 3</small><strong>1 %</strong></div>
+<div class="stat"><small>Niveau 4</small><strong>0,5 %</strong></div>
 </div>
-<p class="muted" style="font-size:11px;margin-top:10px">Exemple : un filleul direct investit 10 000 F → vous gagnez 1 000 F (10 %). Son filleul investit 10 000 F → vous gagnez 500 F (5 %), etc.</p>
+<p class="muted" style="font-size:11px;margin-top:10px">Exemple pour un investissement de 10 000 F : niveau 1 = 500 F (5 %), niveau 2 = 300 F (3 %), niveau 3 = 100 F (1 %), niveau 4 = 50 F (0,5 %). Les commissions sont calculées selon le niveau du filleul.</p>
 </div>
 <div class="panel"><h3>Vos stats</h3>
 <div class="stats">
@@ -237,7 +237,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <section id="blog" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Blog & communauté</h2><p class="subtext">Roue, parrainage et bonus capture</p></div></div>
 <div class="product-hero"><div><span class="pill">TECH INSIGHTS</span><h3>Le hub TECHNOLOGIE INVESTI</h3><p>Actualités, bonus communauté et activités.</p></div><div class="hero-ear">⌁</div></div>
 <div class="panel"><h3>🎡 Roue bonus</h3><p class="muted" style="font-size:11px">Un tour offert par investissement long terme : gagnez 50, 100 ou 150 FCFA.</p><button class="wide" onclick="go('wheel')">Ouvrir la roue bonus ↗</button></div>
-<div class="panel"><h3>♧ Parrainer des personnes</h3><p class="muted" style="font-size:11px">Commissions : 10 % · 5 % · 2 % · 1 % sur 4 niveaux.</p><button class="wide" onclick="go('referral')">Accéder au parrainage ↗</button></div>
+<div class="panel"><h3>♧ Parrainer des personnes</h3><p class="muted" style="font-size:11px">Commissions : 5 % · 3 % · 1 % · 0,5 % sur 4 niveaux.</p><button class="wide" onclick="go('referral')">Accéder au parrainage ↗</button></div>
 <div class="panel"><h3>📸 Bonus capture de retrait</h3>
 <p class="muted" style="font-size:12px;line-height:1.55;margin-bottom:10px">Envoyez une <b>capture d'écran de votre retrait</b> et recevez <b style="color:#36c98f">50 FCFA</b> sur votre solde de retrait (1 fois par jour).</p>
 <div class="field"><label>Capture d'écran du retrait</label>
@@ -297,6 +297,8 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 </div><div id="modalRoot"></div><div id="toastRoot"></div><div id="globalLoader" aria-live="polite" aria-label="Chargement"><div class="loader-card"><div class="loader-earbud" aria-hidden="true">🎧</div><div class="loader-label">TECHNOLOGIE INVESTI<span class="loader-dots"></span></div></div></div>
 <script>
 const SHORT=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],LONG=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],KEY='ti_demo_v2',WAVE='https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/';
+const REF_BASE='https://shopai344-code.github.io/Mon-projet/';
+const REF_RATES=[0.05,0.03,0.01,0.005]; // Niveaux 1 à 4 : 5 %, 3 %, 1 %, 0,5 %
 const CLEANUP_KEY='ti_demo_fake_data_cleanup_v1';
 let db=loadDB(),current=null,admin=false,chosenAmount=5000,duration=30;
 function loadDB(){
@@ -449,7 +451,15 @@ function proofButton(r,inline){
 function viewProof(id){
  const r=(db.requests||[]).find(x=>Number(x.id)===Number(id));
  if(!r||!r.proof||String(r.proof).indexOf('data:image')!==0){toast('Photo introuvable.');return}
- modal('Preuve de paiement','<p style="margin:0 0 8px;font-size:13px">'+esc(r.type)+' · '+esc(r.userName||'')+' '+esc(r.phone)+'<br><b>'+money(r.amount)+'</b> · '+esc(new Date(r.created).toLocaleString('fr-FR'))+'</p><img src="'+r.proof+'" alt="Preuve de paiement" style="width:100%;max-height:65vh;object-fit:contain;border-radius:10px;background:#000;border:1px solid #343746">'+(r.status&&r.status!=='Validée'&&r.status!=='Refusée'&&r.type&&r.type.indexOf('Bonus')!==0?'<div style="display:flex;gap:8px;margin-top:12px"><button class="wide" onclick="setRequestStatus('+Number(r.id)+',\'Validée\');closeModal()">Valider</button><button class="wide" style="background:#343741" onclick="setRequestStatus('+Number(r.id)+',\'Refusée\');closeModal()">Refuser</button></div>':''));
+ const isFinal=['Validée','Refusée'].includes(String(r.status||''));
+ const isBonus=String(r.type||'').indexOf('Bonus')===0;
+ const canReview=!isFinal&&!isBonus&&(/^(Dépôt|Retrait|Souscription)/.test(String(r.type||'')));
+ const actions=canReview
+  ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">'+
+    '<button type="button" onclick="setRequestStatus('+Number(r.id)+',\'Validée\');closeModal()" style="display:block;width:100%;padding:13px 8px;border-radius:10px;background:#168b50;color:#fff;font-weight:900;box-shadow:0 4px 14px #168b5044">✓ Accepter</button>'+
+    '<button type="button" onclick="setRequestStatus('+Number(r.id)+',\'Refusée\');closeModal()" style="display:block;width:100%;padding:13px 8px;border-radius:10px;background:#d92f42;color:#fff;font-weight:900;box-shadow:0 4px 14px #d92f4244">✕ Refuser</button></div>'
+  : (isFinal?'<p class="muted" style="margin-top:12px;font-size:12px">Cette demande a déjà été '+(r.status==='Validée'?'acceptée':'refusée')+'.</p>':'');
+ modal('Photo de la demande', '<p style="margin:0 0 8px;font-size:13px">'+esc(r.type)+' · '+esc(r.userName||'')+' '+esc(r.phone)+'<br><b>'+money(r.amount)+'</b> · '+esc(new Date(r.created).toLocaleString('fr-FR'))+'<br><span style="color:#ffd477">Statut : '+esc(r.status||'En attente')+'</span></p><img src="'+r.proof+'" alt="Photo de la demande" style="display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px;background:#000;border:1px solid #343746">'+actions);
 }
 function compressImageFile(file,cb){
  const reader=new FileReader();
@@ -820,7 +830,7 @@ function renderAdmin(){
  if(typeof waveLink!=='undefined'&&waveLink)waveLink.value=db.wave||'';
  const pendingRequests=reqs.filter(function(r){return !['Validée','Refusée'].includes(r.status)});
  adminRequests.innerHTML=pendingRequests.length?'<table><tr><th>Type / client</th><th>Montant</th><th>Actions</th></tr>'+pendingRequests.slice().reverse().map(function(r){
-  return '<tr><td>'+esc(r.type)+'<br>'+esc(r.userName||'')+' '+esc(r.phone)+(r.email?'<br>'+esc(r.email):'')+(r.beneficiary?'<br>Vers : '+esc(r.beneficiary):'')+(r.reference?'<br>Réf. : '+esc(r.reference):'')+proofButton(r)+'</td><td>'+money(r.amount)+(r.fee?'<br><small>Frais '+money(r.fee)+'</small>':'')+'</td><td>'+esc(r.status)+'<br><button class="smallbtn" onclick="setRequestStatus('+r.id+',\'Validée\')">Valider</button> <button class="smallbtn" style="background:#343741" onclick="setRequestStatus('+r.id+',\'Refusée\')">Refuser</button></td></tr>';
+  return '<tr><td>'+esc(r.type)+'<br>'+esc(r.userName||'')+' '+esc(r.phone)+(r.email?'<br>'+esc(r.email):'')+(r.beneficiary?'<br>Vers : '+esc(r.beneficiary):'')+(r.reference?'<br>Réf. : '+esc(r.reference):'')+proofButton(r)+'</td><td>'+money(r.amount)+(r.fee?'<br><small>Frais '+money(r.fee)+'</small>':'')+'</td><td>'+esc(r.status)+'<br><button class="smallbtn" style="background:#168b50" onclick="setRequestStatus('+r.id+',\'Validée\')">Accepter</button> <button class="smallbtn" style="background:#d92f42" onclick="setRequestStatus('+r.id+',\'Refusée\')">Refuser</button></td></tr>';
  }).join('')+'</table>':'<p class="muted">Aucune demande en attente.</p>';
  function userRow(u){
   return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.phone)+'</td><td>'+esc(u.country||'-')+'</td><td>'+money(u.deposit||0)+'</td><td>'+money(u.withdraw||0)+'</td><td>'+esc(u.email||'-')+'</td></tr>';
