@@ -212,10 +212,11 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <section id="history" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Historique</h2><p class="subtext">Dépôts, retraits et souscriptions demandés.</p></div></div><div class="panel" id="historyList"><p class="muted">Connectez-vous pour afficher vos demandes.</p></div></section>
 
 <section id="referral" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Parrainage</h2><p class="subtext">Invitez des amis et gagnez des commissions</p></div></div>
-<div class="panel"><h3>Votre lien de parrainage</h3>
-<p class="muted" style="font-size:11px;margin-bottom:8px">Partagez ce lien. Quand un filleul investit, vous touchez une commission.</p>
+<div class="panel"><h3>Votre lien d’invitation personnel</h3>
+<p class="muted" style="font-size:11px;margin-bottom:8px">Chaque compte a un lien unique. Partagez <strong>uniquement le vôtre</strong> : la personne arrive directement sur la plateforme et est enregistrée comme votre filleul. Quand il investit, vous touchez la commission.</p>
 <div class="field"><input id="referralLinkInput" readonly style="font-size:11px" value="Connectez-vous pour générer votre lien"></div>
-<button class="wide" onclick="copyReferralLink()">Copier mon lien</button>
+<button class="wide" onclick="copyReferralLink()">📋 Copier mon lien personnel</button>
+<button class="wide" style="margin-top:8px;background:linear-gradient(90deg,#2a3140,#1a1f2a);border:1px solid #3a4150" onclick="renderReferral()">🔄 Actualiser mes filleuls</button>
 </div>
 <div class="panel"><h3>Commissions multi-niveaux</h3>
 <div class="stats">
@@ -330,17 +331,31 @@ function mergeByKey(localArr, cloudArr, keyFn){
   var k=keyFn(item); if(!k)return;
   var prev=map[k];
   if(!prev){map[k]=item;return}
+  // Ne jamais écraser des champs importants par undefined/null venant du local
+  var cleaned={};
+  Object.keys(item).forEach(function(key){
+   var v=item[key];
+   if(v!==undefined&&v!==null&&v!=='')cleaned[key]=v;
+  });
   if(item.deposit!=null||item.withdraw!=null){
-   map[k]=Object.assign({},prev,item,{
+   map[k]=Object.assign({},prev,cleaned,{
     deposit:Math.max(Number(prev.deposit)||0,Number(item.deposit)||0),
     withdraw:Math.max(Number(prev.withdraw)||0,Number(item.withdraw)||0),
     refEarnings:Math.max(Number(prev.refEarnings)||0,Number(item.refEarnings)||0),
-    wheelSpins:Math.max(Number(prev.wheelSpins)||0,Number(item.wheelSpins)||0)
+    wheelSpins:Math.max(Number(prev.wheelSpins)||0,Number(item.wheelSpins)||0),
+    // conserver le parrainage cloud si le local n'en a pas
+    sponsorCode:cleaned.sponsorCode||prev.sponsorCode||'',
+    sponsorPhone:cleaned.sponsorPhone||prev.sponsorPhone||'',
+    refCode:cleaned.refCode||prev.refCode||''
    });
   } else if(keyFn===reqKey){
    map[k]=mergeRequest(prev,item);
   } else {
-   map[k]=Object.assign({},prev,item);
+   map[k]=Object.assign({},prev,cleaned,{
+    sponsorCode:cleaned.sponsorCode||prev.sponsorCode||'',
+    sponsorPhone:cleaned.sponsorPhone||prev.sponsorPhone||'',
+    refCode:cleaned.refCode||prev.refCode||''
+   });
   }
  });
  return Object.keys(map).map(function(k){return map[k]});
@@ -510,8 +525,13 @@ function startCloudRefresh(){
   }catch(e){}
   if(current){
    const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
-   if(refreshed)current=refreshed;
+   if(refreshed){
+    // préserver le code de parrainage local si le cloud n'en a pas encore
+    if(current.refCode&&!refreshed.refCode)refreshed.refCode=current.refCode;
+    current=refreshed;
+   }
    renderHome();renderAccount();renderHistory();
+   if(document.getElementById('referral')&&document.getElementById('referral').classList.contains('active'))renderReferralNow();
   }
   if(admin)renderAdmin();
  },12000);
@@ -612,15 +632,19 @@ async function register(){
  if(pass!==pass2){toast('Les deux mots de passe ne sont pas identiques.');return}
  setBusy('registerButton',true);
  try{await waitForFirebase();const user=await window.firebaseEmailRegister(email,pass);
+  // Charger le cloud AVANT d'attacher le parrain pour trouver le sponsor
   try{await loadCloudDB()}catch(e){}
-  const u={name,country,phone,email,uid:user.uid,deposit:0,withdraw:0,refEarnings:0,created:new Date().toISOString()};ensureRefCode(u);applySponsorOnRegister(u);
-  const k=db.users.findIndex(x=>x.uid===u.uid||x.email===email);if(k>=0)db.users[k]={...db.users[k],...u};else db.users.push(u);
+  const u={name,country,phone,email,uid:user.uid,deposit:0,withdraw:0,refEarnings:0,created:new Date().toISOString()};
+  ensureRefCode(u);
+  applySponsorOnRegister(u);
+  const k=db.users.findIndex(x=>x.uid===u.uid||x.email===email);if(k>=0)db.users[k]=Object.assign({},db.users[k],u);else db.users.push(u);
   current=u;welcomeIsRegister=true;
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
   try{
+   // Forcer l'envoi des champs de parrainage vers Firestore
    await cloudUpsertUser(u);
    await pushCloudNow();
-   toast('Compte créé et synchronisé.');
+   toast(u.sponsorCode?'Compte créé — parrain enregistré.':'Compte créé et synchronisé.');
   }catch(e){toast('Compte créé. Sync cloud échouée — dites au client de se reconnecter.');}
   showWelcome();
  }catch(e){toast((window.firebaseAuthError&&window.firebaseAuthError(e))||e.message||'Erreur d inscription')}finally{setBusy('registerButton',false)}}
@@ -1084,43 +1108,79 @@ function renderInvestments(){
 
 function ensureRefCode(u){
  if(!u)return '';
- if(u.refCode)return u.refCode;
- const code=('TI'+String(u.phone||u.email||'').replace(/\D/g,'').slice(-8)+(u.uid?String(u.uid).slice(0,3):Math.random().toString(36).slice(2,5))).toUpperCase();
- u.refCode=code;saveDB();return code;
+ if(u.refCode)return String(u.refCode).toUpperCase();
+ // Code unique stable : priorise l'UID Firebase, sinon téléphone + e-mail
+ var base='';
+ if(u.uid)base=String(u.uid).replace(/[^a-zA-Z0-9]/g,'').slice(0,10);
+ else base=String(u.phone||'').replace(/\D/g,'').slice(-8)+String(u.email||'').replace(/[^a-zA-Z0-9]/g,'').slice(0,4);
+ if(!base)base=Math.random().toString(36).slice(2,10);
+ const code=('TI'+base).toUpperCase().slice(0,16);
+ u.refCode=code;
+ try{saveDB()}catch(e){}
+ return code;
 }
 function getReferralLink(){
  if(!current)return REF_BASE;
  const code=ensureRefCode(current);
- return REF_BASE+(REF_BASE.indexOf('?')>=0?'&':'?')+'ref='+encodeURIComponent(code);
+ // Lien personnel unique qui ouvre directement la plateforme avec le code de parrainage
+ var base=REF_BASE.endsWith('/')?REF_BASE:REF_BASE+'/';
+ return base+'?ref='+encodeURIComponent(code);
 }
 function copyReferralLink(){
  if(!current){toast('Connectez-vous pour copier votre lien.');return}
  const link=getReferralLink();
  const inp=document.getElementById('referralLinkInput');if(inp)inp.value=link;
- if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(link).then(()=>toast('Lien copié !')).catch(()=>fallbackCopyPayment(link))}
+ if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(link).then(()=>toast('Lien personnel copié ! Partagez-le pour inviter.')).catch(()=>fallbackCopyPayment(link))}
  else fallbackCopyPayment(link);
 }
 function captureRefFromUrl(){
  try{
   const p=new URLSearchParams(location.search);
-  const ref=p.get('ref');
-  if(ref){localStorage.setItem('ti_pending_ref',ref)}
+  let ref=p.get('ref');
+  if(!ref&&location.hash){
+   const hp=new URLSearchParams(location.hash.replace(/^#/,'').replace(/^\?/,''));
+   ref=hp.get('ref')||ref;
+  }
+  if(ref){
+   ref=String(ref).trim().toUpperCase();
+   localStorage.setItem('ti_pending_ref',ref);
+   // Garder le code même après navigation interne
+   try{sessionStorage.setItem('ti_pending_ref',ref)}catch(e){}
+  }
  }catch(e){}
 }
 function applySponsorOnRegister(u){
- const ref=(localStorage.getItem('ti_pending_ref')||'').trim().toUpperCase();
- if(!ref||!u)return;
- const sponsor=db.users.find(x=>String(x.refCode||'').toUpperCase()===ref);
- if(ref&&ref!==String(u.refCode||'').toUpperCase()){u.sponsorCode=ref}
- if(sponsor&&sponsor.phone!==u.phone){u.sponsorCode=sponsor.refCode;u.sponsorPhone=sponsor.phone}
- localStorage.removeItem('ti_pending_ref');
+ if(!u)return;
+ let ref='';
+ try{ref=(localStorage.getItem('ti_pending_ref')||sessionStorage.getItem('ti_pending_ref')||'').trim().toUpperCase()}catch(e){ref=(localStorage.getItem('ti_pending_ref')||'').trim().toUpperCase()}
+ if(!ref)return;
+ // Ne pas se parrainer soi-même
+ if(String(u.refCode||'').toUpperCase()===ref)return;
+ u.sponsorCode=ref;
+ // Chercher le parrain dans la base (locale + déjà chargée cloud)
+ const sponsor=(db.users||[]).find(function(x){
+  return String(x.refCode||'').toUpperCase()===ref
+   || (x.uid&&String(x.uid).toUpperCase().indexOf(ref.replace(/^TI/,''))===0);
+ });
+ if(sponsor&&sponsor.phone&&sponsor.phone!==u.phone){
+  u.sponsorCode=String(sponsor.refCode||ref).toUpperCase();
+  u.sponsorPhone=sponsor.phone;
+  if(sponsor.uid)u.sponsorUid=sponsor.uid;
+  if(sponsor.email)u.sponsorEmail=sponsor.email;
+ }
+ try{localStorage.removeItem('ti_pending_ref');sessionStorage.removeItem('ti_pending_ref')}catch(e){localStorage.removeItem('ti_pending_ref')}
 }
 function findSponsorOf(u){
  if(!u)return null;
  let sp=null;
- if(u.sponsorPhone)sp=db.users.find(x=>x.phone===u.sponsorPhone);
- if(!sp&&u.sponsorCode){const c=String(u.sponsorCode).toUpperCase();sp=db.users.find(x=>String(x.refCode||'').toUpperCase()===c)}
- if(sp&&sp.phone===u.phone&&sp.email===u.email)return null;
+ if(u.sponsorUid)sp=(db.users||[]).find(x=>x.uid&&x.uid===u.sponsorUid);
+ if(!sp&&u.sponsorPhone)sp=(db.users||[]).find(x=>x.phone&&x.phone===u.sponsorPhone);
+ if(!sp&&u.sponsorEmail)sp=(db.users||[]).find(x=>x.email&&String(x.email).toLowerCase()===String(u.sponsorEmail).toLowerCase());
+ if(!sp&&u.sponsorCode){
+  const c=String(u.sponsorCode).toUpperCase();
+  sp=(db.users||[]).find(x=>String(x.refCode||'').toUpperCase()===c);
+ }
+ if(sp&&((sp.phone&&sp.phone===u.phone)||(sp.email&&u.email&&sp.email===u.email)||(sp.uid&&u.uid&&sp.uid===u.uid)))return null;
  return sp||null;
 }
 function payReferralCommissions(investorPhone,investAmount){
@@ -1143,20 +1203,58 @@ function payReferralCommissions(investorPhone,investAmount){
  saveDB();
 }
 async function renderReferral(){
+ ensureRefCode(current);
  renderReferralNow();
- try{await loadCloudDB();if(current){const f=db.users.find(x=>(x.uid&&x.uid===current.uid)||x.email===current.email);if(f){f.refCode=f.refCode||current.refCode;current=f}}renderReferralNow()}catch(e){}
+ try{
+  await loadCloudDB();
+  if(current){
+   const f=(db.users||[]).find(x=>(x.uid&&x.uid===current.uid)||(x.email&&current.email&&x.email.toLowerCase()===current.email.toLowerCase()));
+   if(f){
+    // fusionner sans perdre le code de parrainage
+    f.refCode=f.refCode||current.refCode;
+    current.refCode=current.refCode||f.refCode;
+    current.refEarnings=Math.max(Number(current.refEarnings)||0,Number(f.refEarnings)||0);
+    current=Object.assign({},f,current,{refCode:current.refCode||f.refCode});
+    ensureRefCode(current);
+   }
+  }
+  renderReferralNow();
+ }catch(e){console.warn('renderReferral',e)}
+}
+function isDirectFilleul(u, sponsor){
+ if(!u||!sponsor)return false;
+ if(u===sponsor)return false;
+ if(u.uid&&sponsor.uid&&u.uid===sponsor.uid)return false;
+ if(u.email&&sponsor.email&&String(u.email).toLowerCase()===String(sponsor.email).toLowerCase())return false;
+ if(u.phone&&sponsor.phone&&u.phone===sponsor.phone)return false;
+ const myCode=String(sponsor.refCode||'').toUpperCase();
+ if(myCode&&String(u.sponsorCode||'').toUpperCase()===myCode)return true;
+ if(sponsor.phone&&u.sponsorPhone&&u.sponsorPhone===sponsor.phone)return true;
+ if(sponsor.uid&&u.sponsorUid&&u.sponsorUid===sponsor.uid)return true;
+ if(sponsor.email&&u.sponsorEmail&&String(u.sponsorEmail).toLowerCase()===String(sponsor.email).toLowerCase())return true;
+ return false;
 }
 function renderReferralNow(){
  if(!current)return;
+ ensureRefCode(current);
  const link=getReferralLink();
  const inp=document.getElementById('referralLinkInput');if(inp)inp.value=link;
  const myCode=String(current.refCode||'').toUpperCase();
- const directs=db.users.filter(u=>u!==current&&((u.sponsorPhone&&u.sponsorPhone===current.phone)||(myCode&&String(u.sponsorCode||'').toUpperCase()===myCode)));
- const elC=document.getElementById('refCountDirect');if(elC)elC.textContent=directs.length;
+ const directs=(db.users||[]).filter(function(u){return isDirectFilleul(u,current)});
+ // dédupliquer par uid/email/phone
+ const seen={};const unique=[];
+ directs.forEach(function(u){
+  const k=String(u.uid||u.email||u.phone||Math.random());
+  if(seen[k])return;seen[k]=true;unique.push(u);
+ });
+ const elC=document.getElementById('refCountDirect');if(elC)elC.textContent=unique.length;
  const elE=document.getElementById('refTotalEarn');if(elE)elE.textContent=money(current.refEarnings||0);
  const list=document.getElementById('refList');
  if(list){
-  list.innerHTML=directs.length?directs.map(u=>'<div class="historyitem"><span>'+esc(u.name)+'<br><small class="muted">'+esc(u.phone)+'</small></span><span class="status">Niveau 1</span></div>').join(''):'<p class="muted" style="font-size:11px">Aucun filleul pour le moment. Partagez votre lien.</p>';
+  list.innerHTML=unique.length?unique.map(function(u){
+   const when=u.created?new Date(u.created).toLocaleDateString('fr-FR'):'';
+   return '<div class="historyitem"><span><strong>'+esc(u.name||'Filleul')+'</strong><br><small class="muted">'+esc(u.phone||u.email||'')+(when?' · inscrit le '+when:'')+'</small></span><span class="status">Niveau 1</span></div>';
+  }).join(''):'<p class="muted" style="font-size:11px">Aucun filleul pour le moment. Partagez votre lien personnel ci-dessus.</p>';
  }
 }
 let pendingBlogProof='';
