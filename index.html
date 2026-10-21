@@ -145,25 +145,76 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 .product-art-wrap:after{content:none!important}
 </style>
 <style id="wheel-style">
-.wheel-wrap{position:relative;width:min(300px,82vw);height:min(300px,82vw);margin:18px auto 22px}
-.wheel-glow{position:absolute;inset:-16px;border-radius:50%;background:radial-gradient(circle,#ff3a5c55 55%,transparent 72%);animation:wGlow 2.4s ease-in-out infinite}
-.wheel-wrap.spinning .wheel-glow{animation-duration:.5s}
-.wheel-rot{position:absolute;inset:0;border-radius:50%;border:7px solid #2a2f3d;box-shadow:0 0 0 3px #ef2938,0 8px 30px #000a;overflow:hidden;transform:rotate(0deg)}
-.wheel-rot svg{width:100%;height:100%;display:block}
-.wheel-hub{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#ddd 40%,#999);display:grid;place-items:center;font-size:26px;border:4px solid #ef2938;box-shadow:0 3px 10px #000a;z-index:3}
-.wheel-pointer{position:absolute;top:-16px;left:50%;margin-left:-14px;width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:30px solid #ffd477;filter:drop-shadow(0 3px 3px #000a);z-index:4}
-.wheel-wrap.spinning .wheel-pointer{animation:wTick .12s linear infinite}
-.wheel-lights{position:absolute;inset:-14px;border-radius:50%;z-index:2;pointer-events:none}
-.wheel-lights i{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px;border-radius:50%;background:#ffd477;box-shadow:0 0 8px #ffd477;animation:wBlink 1s steps(2,end) infinite}
-.wheel-lights i:nth-child(even){animation-delay:.5s;background:#ff6b7c;box-shadow:0 0 8px #ff6b7c}
-.wheel-wrap.spinning .wheel-lights i{animation-duration:.25s}
-.wheel-win .wheel-glow{animation:wWin .5s ease-in-out 6}
+.wheel-panel{position:relative;overflow:hidden;background:linear-gradient(160deg,#0a0e18 0%,#10182a 40%,#0c101c 100%)!important;border:1px solid #2a3a5a!important;box-shadow:inset 0 1px #67f4ff18,0 20px 50px #0008!important}
+.wheel-panel:before{content:"";position:absolute;inset:0;background:
+  radial-gradient(ellipse at 50% 0%,#ff254722 0%,transparent 45%),
+  radial-gradient(ellipse at 80% 90%,#1599f612 0%,transparent 40%),
+  linear-gradient(90deg,transparent 49.5%,#67f4ff08 50%,transparent 50.5%),
+  linear-gradient(0deg,transparent 49.5%,#67f4ff08 50%,transparent 50.5%);
+  pointer-events:none;z-index:0}
+.wheel-panel > *{position:relative;z-index:1}
+.wheel-title-tech{font-size:15px;letter-spacing:2.5px;text-transform:uppercase;font-weight:900;background:linear-gradient(90deg,#67f4ff,#ff526a,#ffd477);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:4px 0 6px}
+.wheel-sub-tech{font-size:11px;color:#8aa0b8;line-height:1.55;margin:0 0 4px}
+.wheel-wrap{position:relative;width:min(320px,88vw);height:min(320px,88vw);margin:22px auto 26px;isolation:isolate}
+.wheel-ring-outer{position:absolute;inset:-22px;border-radius:50%;border:1px solid #67f4ff33;box-shadow:0 0 30px #1599f622,inset 0 0 30px #ff254712;animation:wOrbit 12s linear infinite;pointer-events:none}
+.wheel-ring-outer:after{content:"";position:absolute;inset:8px;border-radius:50%;border:1px dashed #ff526a44}
+.wheel-ring-scan{position:absolute;inset:-8px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0deg,#67f4ff44 40deg,transparent 80deg,transparent 180deg,#ff526a33 220deg,transparent 280deg);animation:wScan 4s linear infinite;pointer-events:none;mix-blend-mode:screen}
+.wheel-glow{position:absolute;inset:-28px;border-radius:50%;background:
+  radial-gradient(circle,#ff254740 0%,#1599f618 42%,transparent 68%);
+  animation:wGlow 2.8s ease-in-out infinite;pointer-events:none}
+.wheel-wrap.spinning .wheel-glow{animation-duration:.4s;background:radial-gradient(circle,#ff526a66 0%,#67f4ff33 50%,transparent 70%)}
+.wheel-wrap.spinning .wheel-ring-scan{animation-duration:.6s}
+.wheel-rot{position:absolute;inset:0;border-radius:50%;
+  border:3px solid transparent;
+  background:
+    linear-gradient(#0b1019,#0b1019) padding-box,
+    linear-gradient(135deg,#67f4ff,#ff2547 40%,#ffd477 70%,#67f4ff) border-box;
+  box-shadow:
+    0 0 0 6px #0a0e1888,
+    0 0 0 8px #67f4ff44,
+    0 0 40px #ff254744,
+    0 12px 40px #000c,
+    inset 0 0 20px #0008;
+  overflow:hidden;transform:rotate(0deg)}
+.wheel-rot svg{width:100%;height:100%;display:block;filter:drop-shadow(0 0 2px #000)}
+.wheel-hub{position:absolute;left:50%;top:50%;width:68px;height:68px;margin:-34px 0 0 -34px;border-radius:50%;
+  background:
+    radial-gradient(circle at 32% 28%,#ffffffee,#c8d4e8 28%,#3a4a62 58%,#121820 100%);
+  display:grid;place-items:center;font-size:22px;z-index:5;
+  border:3px solid transparent;
+  background-clip:padding-box;
+  box-shadow:
+    0 0 0 2px #67f4ff,
+    0 0 0 5px #0b1019,
+    0 0 0 7px #ff526a88,
+    0 0 24px #67f4ff66,
+    0 4px 16px #000a;
+  animation:wHubPulse 2.5s ease-in-out infinite}
+.wheel-hub span{filter:drop-shadow(0 0 8px #ff526a);line-height:1}
+.wheel-pointer{position:absolute;top:-22px;left:50%;transform:translateX(-50%);z-index:6;width:28px;height:36px;filter:drop-shadow(0 4px 10px #000a)}
+.wheel-pointer svg{width:28px;height:36px;display:block}
+.wheel-wrap.spinning .wheel-pointer{animation:wTick .1s linear infinite}
+.wheel-lights{position:absolute;inset:-18px;border-radius:50%;z-index:2;pointer-events:none}
+.wheel-lights i{position:absolute;left:50%;top:50%;width:9px;height:9px;margin:-4.5px;border-radius:50%;
+  background:#67f4ff;box-shadow:0 0 10px #67f4ff,0 0 18px #67f4ff88;animation:wBlink 1.1s ease-in-out infinite}
+.wheel-lights i:nth-child(3n){background:#ff526a;box-shadow:0 0 10px #ff526a,0 0 18px #ff526a88;animation-delay:.35s}
+.wheel-lights i:nth-child(3n+1){background:#ffd477;box-shadow:0 0 10px #ffd477,0 0 16px #ffd47777;animation-delay:.7s}
+.wheel-wrap.spinning .wheel-lights i{animation-duration:.18s}
+.wheel-win .wheel-glow{animation:wWin .45s ease-in-out 8}
+.wheel-win .wheel-hub{box-shadow:0 0 0 2px #ffd477,0 0 0 5px #0b1019,0 0 0 8px #36c98f,0 0 40px #36c98f88,0 4px 16px #000a}
+.wheel-status{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;background:#0d1522;border:1px solid #2a3a55;font-size:11px;color:#9eb4cc;margin:8px 0 4px}
+.wheel-status b{color:#67f4ff}
+.wheel-btn-tech{background:linear-gradient(105deg,#ff3349 0%,#e51b35 45%,#9b0d28 100%)!important;box-shadow:0 0 24px #ff254755,0 8px 22px #f3263a40,inset 0 1px #ffffff44!important;letter-spacing:.8px;text-transform:uppercase;font-size:13px!important}
+.wheel-btn-tech:disabled{opacity:.55;filter:grayscale(.2)}
 .confetti{position:fixed;top:-10px;z-index:9999;font-size:20px;pointer-events:none;animation:wFall 2.4s ease-in forwards}
-@keyframes wGlow{0%,100%{opacity:.55;transform:scale(.97)}50%{opacity:1;transform:scale(1.04)}}
-@keyframes wBlink{0%{opacity:1}100%{opacity:.2}}
-@keyframes wTick{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
-@keyframes wWin{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.12);opacity:1}}
+@keyframes wGlow{0%,100%{opacity:.5;transform:scale(.96)}50%{opacity:1;transform:scale(1.05)}}
+@keyframes wBlink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.25;transform:scale(.7)}}
+@keyframes wTick{0%,100%{transform:translateX(-50%) rotate(0)}50%{transform:translateX(-50%) rotate(-11deg)}}
+@keyframes wWin{0%,100%{transform:scale(1);opacity:.65}50%{transform:scale(1.14);opacity:1}}
 @keyframes wFall{to{transform:translateY(105vh) rotate(540deg);opacity:.9}}
+@keyframes wOrbit{to{transform:rotate(360deg)}}
+@keyframes wScan{to{transform:rotate(360deg)}}
+@keyframes wHubPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.15)}}
 </style>
 </head>
 <body>
@@ -250,7 +301,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>Actualités officielles</h3><p class="muted" style="font-size:11px">Suivez les annonces de la plateforme et le groupe Telegram.</p>
 <a href="https://t.me/+CzO9jS2-CM1lMzBk" target="_blank" rel="noopener" class="wide" style="display:block;text-align:center;margin-top:10px;text-decoration:none">✈️ Groupe Telegram</a>
 </div></section>
-<section id="wheel" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Roue bonus</h2><p class="subtext">1 tour offert par investissement long terme</p></div></div><div class="panel wheel-panel"><div class="wheel-wrap" id="wheelWrap"><div class="wheel-glow"></div><div class="wheel-lights" id="wheelLights"></div><div class="wheel-pointer"></div><div class="wheel-rot" id="wheelRot"><svg id="wheelSvg" viewBox="0 0 300 300" aria-label="Roue bonus"></svg></div><div class="wheel-hub">🎁</div></div><h3>La roue des bonus</h3><p class="muted" style="font-size:11px;line-height:1.5">Gains possibles : <b>50 · 100 · 200 · 300 · 500 FCFA</b>. Les gros montants affichés sur la roue sont décoratifs. Le gain est ajouté à votre solde de retrait.<br>Vous avez droit à <b>un seul tour</b> chaque fois que vous faites un <b>investissement long terme</b>.</p><p id="wheelInfo" class="muted" style="font-size:12px;font-weight:700"></p><button class="wide" id="wheelBtn" onclick="spinWheel()">Lancer la roue</button><p id="wheelResult" class="muted" style="text-align:center;font-size:13px;min-height:38px"></p></div></section>
+<section id="wheel" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Roue bonus</h2><p class="subtext">Module de gains · investissement long terme</p></div></div><div class="panel wheel-panel"><div class="wheel-wrap" id="wheelWrap"><div class="wheel-ring-outer"></div><div class="wheel-ring-scan"></div><div class="wheel-glow"></div><div class="wheel-lights" id="wheelLights"></div><div class="wheel-pointer"><svg viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg"><path d="M14 34 L2 4 L14 10 L26 4 Z" fill="url(#ptrGrad)" stroke="#67f4ff" stroke-width="1.2"/><defs><linearGradient id="ptrGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffd477"/><stop offset="55%" stop-color="#ff526a"/><stop offset="100%" stop-color="#a80025"/></linearGradient></defs></svg></div><div class="wheel-rot" id="wheelRot"><svg id="wheelSvg" viewBox="0 0 300 300" aria-label="Roue bonus"></svg></div><div class="wheel-hub"><span>◆</span></div></div><div class="wheel-title-tech">Nexus Reward Wheel</div><p class="wheel-sub-tech">Gains : <b style="color:#ffd477">50 · 100 · 200 · 300 · 500 FCFA</b> — crédités instantanément sur votre solde de retrait.<br>1 tour offert à chaque <b style="color:#67f4ff">investissement long terme</b> validé.</p><p id="wheelInfo" class="wheel-status">Chargement du module…</p><button class="wide wheel-btn-tech" id="wheelBtn" onclick="spinWheel()">⚡ Lancer la roue</button><p id="wheelResult" style="text-align:center;font-size:13px;min-height:42px;margin-top:12px;color:#9eb4cc"></p></div></section>
 
 <section id="account" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Mon compte</h2><p class="subtext">Informations de votre profil.</p></div></div><div id="loggedOut" class="panel hidden"><p>Vous devez vous connecter pour accéder à votre compte.</p><button class="wide" onclick="logout()">Retour à la connexion</button></div><div id="loggedIn" class="panel"><h3 id="accountName">Mon compte</h3><p class="muted" id="accountPhone"></p><div class="stats"><div class="stat"><small>Solde dépôt</small><strong id="accountDeposit">0 F</strong></div><div class="stat"><small>Solde retrait</small><strong id="accountWithdraw">0 F</strong></div></div><button class="wide" onclick="logout()">Déconnexion</button></div>
 <button class="wide" style="margin-top:10px" onclick="go('investments')">📊 Voir mes investissements</button>
@@ -899,25 +950,49 @@ if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0
  /* solde inchangé si refus */
 }
 saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
-// 12 cases : les gros montants (>= 2000) sont de la décoration, ils ne sont JAMAIS tirés (absents de WHEEL_ODDS)
-const WHEEL_SEGMENTS=[50,10000,100,50000,200,5000,300,100000,50,80000,500,2000];
-// Seuls ces gains peuvent tomber (poids = chances sur 100) : plus le montant monte, plus c'est rare
-const WHEEL_ODDS=[{amount:50,weight:50},{amount:100,weight:28},{amount:200,weight:14},{amount:300,weight:6},{amount:500,weight:2}];
+// Cases = gains réels uniquement (crédibles). Poids = probabilités.
+const WHEEL_SEGMENTS=[50,100,200,300,500,50,100,200,300,500,100,200];
+const WHEEL_ODDS=[{amount:50,weight:42},{amount:100,weight:28},{amount:200,weight:16},{amount:300,weight:9},{amount:500,weight:5}];
 let wheelRotation=0,wheelBusy=false;
-function wheelColors(a){return a>=2000?['#e4c16d','#2a1c00']:a>=300?['#8b2436','#ffffff']:a>=100?['#fa3447','#ffffff']:['#1d2330','#ffffff']}
+function wheelColors(a,i){
+ const palette=[
+  ['#0e1a2e','#67f4ff'],
+  ['#1a0a14','#ff526a'],
+  ['#12182a','#ffd477'],
+  ['#0a1628','#67f4ff'],
+  ['#220a18','#ff6b7c'],
+  ['#0c1422','#a8e6ff']
+ ];
+ if(a>=500)return ['#2a1808','#ffd477'];
+ if(a>=300)return ['#2a0c18','#ff8a9a'];
+ if(a>=200)return ['#0c1e32','#67f4ff'];
+ if(a>=100)return ['#1a1028','#c4b5fd'];
+ return palette[i%palette.length];
+}
 function buildWheel(){
  const svg=document.getElementById('wheelSvg');
- if(!svg||svg.dataset.built)return;
+ if(!svg)return;
  const n=WHEEL_SEGMENTS.length,step=360/n,pt=(deg,r)=>[150+r*Math.sin(deg*Math.PI/180),150-r*Math.cos(deg*Math.PI/180)];
- let h='';
+ let h='<defs>';
+ h+='<filter id="wGlowF"><feGaussianBlur stdDeviation="1.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>';
+ h+='<radialGradient id="wRim" cx="50%" cy="50%" r="50%"><stop offset="70%" stop-color="#0000"/><stop offset="100%" stop-color="#0006"/></radialGradient>';
+ h+='</defs>';
  WHEEL_SEGMENTS.forEach((amt,i)=>{
-  const a0=i*step,a1=(i+1)*step,p0=pt(a0,150),p1=pt(a1,150),c=wheelColors(amt);
-  h+=`<path d="M150 150 L${p0[0].toFixed(2)} ${p0[1].toFixed(2)} A150 150 0 0 1 ${p1[0].toFixed(2)} ${p1[1].toFixed(2)} Z" fill="${c[0]}" stroke="#0b0d14" stroke-width="2"/>`;
-  h+=`<g transform="rotate(${(a0+step/2).toFixed(1)} 150 150)"><text transform="translate(150 108) rotate(-90)" text-anchor="start" fill="${c[1]}" font-family="Arial,sans-serif" font-weight="900" font-size="${String(amt).length>4?21:24}">${amt}</text></g>`;
+  const a0=i*step,a1=(i+1)*step,p0=pt(a0,148),p1=pt(a1,148),c=wheelColors(amt,i);
+  const large=0;
+  h+=`<path d="M150 150 L${p0[0].toFixed(2)} ${p0[1].toFixed(2)} A148 148 0 ${large} 1 ${p1[0].toFixed(2)} ${p1[1].toFixed(2)} Z" fill="${c[0]}" stroke="#67f4ff22" stroke-width="1.5"/>`;
+  // ligne de séparation tech
+  const e0=pt(a0,148);
+  h+=`<line x1="150" y1="150" x2="${e0[0].toFixed(2)}" y2="${e0[1].toFixed(2)}" stroke="#67f4ff33" stroke-width="1"/>`;
+  h+=`<g transform="rotate(${(a0+step/2).toFixed(1)} 150 150)"><text transform="translate(150 92) rotate(-90)" text-anchor="middle" dominant-baseline="middle" fill="${c[1]}" font-family="system-ui,Arial,sans-serif" font-weight="800" font-size="20" filter="url(#wGlowF)" letter-spacing="0.5">${amt}</text></g>`;
  });
- svg.innerHTML=h;svg.dataset.built='1';
+ // anneau intérieur + overlay
+ h+=`<circle cx="150" cy="150" r="148" fill="url(#wRim)" pointer-events="none"/>`;
+ h+=`<circle cx="150" cy="150" r="42" fill="#0a0e18" stroke="#67f4ff55" stroke-width="2"/>`;
+ h+=`<circle cx="150" cy="150" r="36" fill="none" stroke="#ff526a33" stroke-width="1" stroke-dasharray="4 3"/>`;
+ svg.innerHTML=h;
  const L=document.getElementById('wheelLights');
- if(L&&!L.children.length){let d='';for(let i=0;i<20;i++){const a=i*18,x=50+50*Math.sin(a*Math.PI/180),y=50-50*Math.cos(a*Math.PI/180);d+=`<i style="left:${x}%;top:${y}%"></i>`}L.innerHTML=d}
+ if(L){let d='';for(let i=0;i<24;i++){const a=i*15,x=50+50*Math.sin(a*Math.PI/180),y=50-50*Math.cos(a*Math.PI/180);d+=`<i style="left:${x}%;top:${y}%"></i>`}L.innerHTML=d}
 }
 function wheelSpinsAvailable(){
  if(!current)return {total:0,used:0,left:0};
@@ -930,11 +1005,11 @@ function renderWheel(){
  buildWheel();
  const info=document.getElementById('wheelInfo'),btn=document.getElementById('wheelBtn');
  if(!info||!btn)return;
- if(!current){info.textContent='Connectez-vous pour utiliser la roue.';btn.disabled=true;return}
+ if(!current){info.innerHTML='◈ Connectez-vous pour activer le module';btn.disabled=true;return}
  const w=wheelSpinsAvailable();
- if(w.left>0){info.innerHTML='🎟️ Tour disponible : <span style="color:#36c98f">'+w.left+'</span>';btn.disabled=false;btn.textContent='Lancer la roue'}
- else if(w.total>0){info.innerHTML='Tour déjà utilisé. Un nouvel <b>investissement long terme</b> vous donne un nouveau tour.';btn.disabled=false;btn.textContent='Lancer la roue'}
- else{info.innerHTML='La roue est réservée aux <b>investissements long terme</b>.';btn.disabled=false;btn.textContent='Lancer la roue'}
+ if(w.left>0){info.innerHTML='◈ Tours disponibles : <b style="color:#36c98f">'+w.left+'</b>';btn.disabled=false;btn.textContent='⚡ Lancer la roue'}
+ else if(w.total>0){info.innerHTML='◈ Tour utilisé — nouvel investissement long terme = nouveau tour';btn.disabled=false;btn.textContent='⚡ Lancer la roue'}
+ else{info.innerHTML='◈ Réservé aux investissements <b>long terme</b>';btn.disabled=false;btn.textContent='⚡ Lancer la roue'}
 }
 function wheelConfetti(){
  const em=['🎉','✨','💰','🎊','⭐'];
@@ -963,7 +1038,7 @@ function spinWheel(){
  saveDB();
  // animation
  wheelBusy=true;document.getElementById('wheelBtn').disabled=true;wrap.classList.remove('wheel-win');wrap.classList.add('spinning');
- result.style.color='#ffd477';result.textContent='La roue tourne…';
+ result.style.color='#67f4ff';result.innerHTML='<span style="letter-spacing:1px">◈ CALCUL DU GAIN EN COURS…</span>';
  const jitter=(Math.random()-.5)*(step*.6),target=((360-(seg*step+step/2)+jitter)%360+360)%360;
  wheelRotation=wheelRotation+360*6+(((target-(wheelRotation%360))%360)+360)%360;
  rot.style.transition='transform 5s cubic-bezier(.12,.62,.08,1)';
@@ -971,7 +1046,7 @@ function spinWheel(){
  rot.style.transform='rotate('+wheelRotation+'deg)';
  setTimeout(()=>{
   wrap.classList.remove('spinning');wrap.classList.add('wheel-win');wheelBusy=false;
-  result.innerHTML='🎉 Bravo ! Vous gagnez <b style="color:#36c98f;font-size:18px">'+prize+' FCFA</b><br><small>Ajouté à votre solde de retrait</small>';
+  result.innerHTML='<span style="color:#36c98f;font-size:15px;font-weight:800">◆ GAIN VALIDÉ · '+prize+' FCFA</span><br><small style="color:#8aa0b8">Crédité sur votre solde de retrait</small>';
   toast('Gain roue : '+prize+' FCFA crédité sur le solde de retrait');
   wheelConfetti();renderAccount();renderHome();renderHistory();renderWheel();
  },5200);
