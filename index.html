@@ -311,6 +311,8 @@ function mergeByKey(localArr, cloudArr, keyFn){
     withdraw:Math.max(Number(prev.withdraw)||0,Number(item.withdraw)||0),
     refEarnings:Math.max(Number(prev.refEarnings)||0,Number(item.refEarnings)||0)
    });
+  } else if(keyFn===reqKey){
+   map[k]=mergeRequest(prev,item);
   } else {
    map[k]=Object.assign({},prev,item);
   }
@@ -318,6 +320,16 @@ function mergeByKey(localArr, cloudArr, keyFn){
  return Object.keys(map).map(function(k){return map[k]});
 }
 
+function mergeRequest(prev,item){
+ const fin=function(x){return x&&(x.status==='Validée'||x.status==='Refusée')};
+ let w=item,l=prev;
+ if(fin(prev)&&!fin(item)){w=prev;l=item}
+ else if(fin(prev)&&fin(item)&&String(prev.reviewedAt||'')>String(item.reviewedAt||'')){w=prev;l=item}
+ const o=Object.assign({},l,w);
+ if((!o.proof||o.proof==='[image]')&&l.proof&&l.proof!=='[image]')o.proof=l.proof;
+ if(item.cloudOk!==undefined)o.cloudOk=item.cloudOk;
+ return o;
+}
 async function fsReady(){
  try{await waitForFirebase()}catch(e){}
  return window.firebaseDB||null;
@@ -334,20 +346,21 @@ async function cloudGetCollection(col){
  }catch(e){console.warn('firestore get',col,e);return []}
 }
 async function fsUpsert(col,key,obj){
- if(!obj||!key)return;
+ if(!obj||!key)return false;
  try{
   const fs=await fsReady();
-  if(!fs)return;
+  if(!fs)return false;
   const body=JSON.parse(JSON.stringify(obj));
-  delete body._id;
+  delete body._id;delete body.cloudOk;
   if(body.proof&&String(body.proof).length>200000)body.proof='[image]';
   const sig=JSON.stringify(body);
   const id=fsDocId(key);
-  if(_fsSynced[col+'/'+id]===sig)return;
+  if(_fsSynced[col+'/'+id]===sig)return true;
   body.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
   await fs.collection(col).doc(id).set(body,{merge:true});
   _fsSynced[col+'/'+id]=sig;
- }catch(e){console.warn('firestore upsert',col,e)}
+  return true;
+ }catch(e){console.warn('firestore upsert',col,e);return false}
 }
 async function cloudUpsertUser(u){
  if(!u)return;
@@ -356,7 +369,12 @@ async function cloudUpsertUser(u){
  body.investi=(db.requests||[]).some(function(r){return r.phone===u.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée'});
  return fsUpsert(CLOUD_USERS,userKey(u),body);
 }
-async function cloudUpsertRequest(r){return r&&fsUpsert(CLOUD_REQUESTS,reqKey(r),r)}
+async function cloudUpsertRequest(r){
+ if(!r)return false;
+ const ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),r);
+ if(ok&&r.cloudOk===false){r.cloudOk=true;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}try{if(current){renderHistory();renderHome()}}catch(e){}}
+ return ok;
+}
 async function cloudUpsertInvestment(inv){return inv&&fsUpsert(CLOUD_INVESTMENTS,invKey(inv),inv)}
 
 function saveDB(){
@@ -399,6 +417,13 @@ async function adminRefresh(){
 }
 
 function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function statusLabel(r){
+ const s=(r&&r.status)||'',t=(r&&r.type)||'',dep=/^Dépôt/.test(t),ret=/^Retrait/.test(t);
+ if(s==='Validée')return dep?'✅ Dépôt validé':ret?'✅ Retrait validé':'✅ Validée';
+ if(s==='Refusée')return dep?'❌ Dépôt refusé':ret?'❌ Retrait refusé':'❌ Refusée';
+ if(dep&&r.cloudOk===false)return '⏳ Envoi en cours… (connexion lente)';
+ return s;
+}
 function toast(t){toastRoot.innerHTML='<div class="toast">'+esc(t)+'</div>';setTimeout(()=>toastRoot.innerHTML='',3000)}
 function go(id){document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.navitem').forEach(x=>x.classList.toggle('active',x.dataset.go===id||(id==='withdraw'&&x.dataset.go==='recharge')||(id==='referral'&&x.dataset.go==='account')));if(id==='products')renderProducts(duration);if(id==='home')renderHome();if(id==='history')renderHistory();if(id==='account')renderAccount();if(id==='admin')renderAdmin();if(id==='investments')renderInvestments();if(id==='referral')renderReferral();window.scrollTo(0,0)}
 document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
@@ -418,7 +443,7 @@ const PLAN120=[
 ];
 function productHTML(plan,i,longTerm=false){const img=EAR_IMAGES[i%EAR_IMAGES.length],total=plan.daily*plan.days,final=plan.price+total;return `<div class="product product-modern"><div class="product-art-wrap"><img class="product-art" src="${img}" alt="Écouteurs sans fil futuristes" loading="eager" ></div><div class="product-info"><div class="product-titleline"><strong>${longTerm?'LONG TERME':'PLAN VIP'} ${i+1}</strong><span class="pill">${plan.days} J</span></div><small>Écouteurs haute technologie</small><div class="product-price">Dépôt : ${money(plan.price)}</div><div class="earning-grid"><div><small>Gain quotidien</small><b>${money(plan.daily)}</b></div><div><small>Gains totaux</small><b>${money(total)}</b></div><div><small>Capital + gains</small><b>${money(final)}</b></div><div><small>Durée du plan</small><b>${plan.days} jours</b></div></div></div><button class="smallbtn" onclick="askPlan(${plan.price},${plan.days},${i+1},${plan.daily},${total},${longTerm})">Investir</button></div>`}
 function renderProducts(days=30){duration=Number(days);const arr=duration===30?PLAN30:PLAN120;allProducts.innerHTML=arr.map((p,i)=>productHTML(p,i,duration===120)).join('')}
-function renderHome(){processMaturedInvestments();hello.textContent=current?'Bonjour, '+current.name:'Bonjour, invité';homeBalance.textContent=money(current?current.deposit+current.withdraw:0);homeProducts.innerHTML=PLAN30.slice(0,4).map((p,i)=>productHTML(p,i,false)).join('');const rs=current?db.requests.filter(r=>r.phone===current.phone).slice(-3).reverse():[];homeHistory.innerHTML=rs.length?rs.map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleDateString('fr-FR')}</small></span><span>${money(r.amount)}<br><span class="status">${esc(r.status)}</span></span></div>`).join(''):'<div class="muted" style="font-size:11px">Aucune activité pour le moment.</div>'}
+function renderHome(){processMaturedInvestments();hello.textContent=current?'Bonjour, '+current.name:'Bonjour, invité';homeBalance.textContent=money(current?current.deposit+current.withdraw:0);homeProducts.innerHTML=PLAN30.slice(0,4).map((p,i)=>productHTML(p,i,false)).join('');const rs=current?db.requests.filter(r=>r.phone===current.phone).slice(-3).reverse():[];homeHistory.innerHTML=rs.length?rs.map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleDateString('fr-FR')}</small></span><span>${money(r.amount)}<br><span class="status">${esc(statusLabel(r))}</span></span></div>`).join(''):'<div class="muted" style="font-size:11px">Aucune activité pour le moment.</div>'}
 function askPlan(price,days,vip,daily=0,total=0,longTerm=false){if(!current){toast('Connectez-vous pour continuer.');showAuth('login');authScreen.style.display='flex';document.querySelector('.app').classList.add('gated');return}const approvedDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN)/.test(r.type)&&r.status==='Validée');if(!approvedDeposit){toast('Vous devez effectuer un dépôt Wave et attendre sa validation avant tout investissement.');go('recharge');return}if((Number(current.deposit)||0)<price){toast('Votre dépôt validé disponible est insuffisant pour ce plan.');go('recharge');return}modal((longTerm?'Plan long terme ':'Plan VIP ')+vip,`<p>Dépôt initial : <b>${money(price)}</b></p><p>Gain quotidien quotidien du plan : <b>${money(daily)}</b></p><p>Durée : <b>${days} jours</b></p><p>Gains totaux calculés : <b>${money(total)}</b></p><p>Capital + gains calculés : <b>${money(price+total)}</b></p><div class="note">Vérifiez bien le montant, la durée et le gain quotidien avant de confirmer votre investissement.</div><button class="wide" onclick="addRequest('Souscription '+( ${JSON.stringify(longTerm)} ? 'long terme ':'VIP ')+${vip},${price},${daily},${days},${JSON.stringify(!!longTerm)});closeModal()">Confirmer l’investissement</button>`)}
 function showAuth(which){const isLogin=which==='login';authLoginForm.classList.toggle('hidden',!isLogin);authRegisterForm.classList.toggle('hidden',isLogin);authLoginTab.classList.toggle('active',isLogin);authRegisterTab.classList.toggle('active',!isLogin)}
 
@@ -429,6 +454,10 @@ function startCloudRefresh(){
   if(!current&&!admin)return;
   const ok=await loadCloudDB();
   if(!ok)return;
+  try{
+   const mine=function(r){return admin||(current&&((current.uid&&r.uid===current.uid)||(current.email&&r.email===current.email)||(current.phone&&r.phone===current.phone)))};
+   (db.requests||[]).filter(mine).slice(-40).forEach(function(r){cloudUpsertRequest(r)});
+  }catch(e){}
   if(current){
    const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed)current=refreshed;
@@ -672,12 +701,16 @@ function previewDepositProof(input){
   const img=new Image();img.onload=()=>{const max=900,scale=Math.min(1,max/Math.max(img.width,img.height)),canvas=document.createElement('canvas');canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);let q=.7,d=canvas.toDataURL('image/jpeg',q);while(d.length>180000&&q>.3){q-=.1;d=canvas.toDataURL('image/jpeg',q)}pendingProofData=d;const prev=document.getElementById('proofPreview');if(prev)prev.innerHTML=`<img src="${pendingProofData}" alt="Aperçu de la preuve" style="max-width:100%;max-height:180px;border-radius:10px;border:1px solid #343746">`};img.onerror=()=>toast('Impossible de lire cette image.');img.src=reader.result;
  };reader.readAsDataURL(file)
 }
-function submitDepositProof(){
+async function submitDepositProof(){
  if(!current||!pendingDeposit||!pendingDeposit.amount){toast('Session ou demande de dépôt introuvable.');return}
  if(!pendingProofData){toast('Ajoutez la capture d’écran de la transaction avant l’envoi.');return}
  const d=pendingDeposit,type=pendingDepositMode==='MTN'?'Dépôt MTN':(isCI()?'Dépôt Wave':'Dépôt Wave international');
- try{db.requests.push({id:Date.now(),type:type,phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country||'',proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString()});saveDB()}catch(e){toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
- renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';toast('Preuve envoyée. Le dépôt sera validé après vérification par l’administrateur.');
+ const req={id:Date.now(),type:type,phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country||'',proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString(),cloudOk:false};
+ try{db.requests.push(req);saveDB()}catch(e){db.requests=db.requests.filter(x=>x!==req);toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
+ renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';
+ toast('Envoi de votre preuve en cours…');
+ const ok=await cloudUpsertRequest(req);
+ toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée et sera renvoyée automatiquement. Ne la recréez pas.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
 function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name});saveDB();renderHistory();renderAdmin();toast('Demande de retrait '+method+' envoyée. En attente de validation.')}
@@ -723,7 +756,7 @@ function addRequest(type,amount,daily,days,longTerm){
  toast('Investissement activé ! Suivez votre plan dans Mes investissements.');
  closeModal();
 }
-function renderHistory(){historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone).slice().reverse().map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleString('fr-FR')}</small></span><span style="text-align:right">${money(r.amount)}<br><span class="status">${esc(r.status)}</span></span></div>`).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>'}
+function renderHistory(){historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone).slice().reverse().map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleString('fr-FR')}</small></span><span style="text-align:right">${money(r.amount)}<br><span class="status">${esc(statusLabel(r))}</span></span></div>`).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>'}
 function modal(title,body){modalRoot.innerHTML=`<div class="modalback" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><h3>${esc(title)}</h3><button class="iconbtn" onclick="closeModal()">✕</button></div>${body}</div></div>`}function closeModal(){modalRoot.innerHTML=''}
 function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=(pass==='Moussa'||pass==='Moussa99');if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;renderAdmin();toast('Accès administrateur ouvert.');loadCloudDB().then(function(){renderAdmin();startCloudRefresh();}).catch(function(){renderAdmin();});}
 function adminLogout(){admin=false;renderAdmin()}
