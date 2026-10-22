@@ -555,20 +555,39 @@ async function cloudUpsertUser(u){
 }
 async function cloudUpsertRequest(r){
  if(!r)return false;
- // 1) Toujours envoyer d'abord les métadonnées SANS la photo (léger → admin voit la demande)
- const meta=Object.assign({},r);
- if(meta.proof&&String(meta.proof).indexOf('data:image')===0){
-  meta.hasProof=true;
-  meta.proof='[image]';
- }
+ // Admin ne reçoit JAMAIS la photo : uniquement type, montant, client, statut
+ const meta={
+  id:r.id,
+  type:r.type,
+  phone:r.phone||'',
+  amount:Number(r.amount)||0,
+  status:r.status||'À examiner',
+  country:r.country||'',
+  email:r.email||'',
+  uid:r.uid||'',
+  userName:r.userName||'',
+  created:r.created||new Date().toISOString(),
+  reviewedAt:r.reviewedAt||'',
+  method:r.method||'',
+  beneficiary:r.beneficiary||'',
+  fee:r.fee||0,
+  reference:r.reference||'',
+  balanceReserved:!!r.balanceReserved,
+  daily:r.daily,
+  days:r.days,
+  longTerm:!!r.longTerm,
+  hasProof:!!(r.hasProof||(r.proof&&String(r.proof).indexOf('data:image')===0)),
+  from:r.from||'',
+  level:r.level
+ };
  let ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),meta,{stripProof:true});
  if(!ok){
-  // 2e tentative sans aucun champ preuve
   try{
-   const light=Object.assign({},r);
-   delete light.proof;
-   light.hasProof=!!r.proof;
-   ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),light,{stripProof:true});
+   // fallback ultra-léger
+   ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),{
+    id:r.id,type:r.type,phone:r.phone,amount:r.amount,status:r.status,
+    email:r.email,uid:r.uid,userName:r.userName,created:r.created
+   },{stripProof:true});
   }catch(e){}
  }
  if(ok&&r.cloudOk===false){
@@ -626,10 +645,9 @@ function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function e
 function proofButton(r,inline){
  if(!r)return inline?'-':'';
  const pre=inline?'':'<br>';
+ // Photo jamais transmise à l’admin pour les dépôts : uniquement validation / refus
  if(r.proof&&String(r.proof).indexOf('data:image')===0)return pre+'<button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="viewProof('+Number(r.id)+')">📷 Voir la photo</button>';
- if(r.hasProof||r.proof==='[image]')return pre+'<small style="color:#ffd477">Photo envoyée côté client (non stockée cloud). Vérifiez le montant Wave puis validez.</small>';
- if(!r.proof)return inline?'-':'';
- return pre+'<small style="color:#ffd477">Photo non reçue. Demandez au client de la renvoyer.</small>';
+ return inline?'-':'';
 }
 function viewProof(id){
  const r=(db.requests||[]).find(x=>Number(x.id)===Number(id));
@@ -661,8 +679,9 @@ function statusLabel(r){
  const s=(r&&r.status)||'',t=(r&&r.type)||'',dep=/^Dépôt/.test(t),ret=/^Retrait/.test(t);
  if(s==='Validée')return dep?'✅ Dépôt validé':ret?'✅ Retrait validé':'✅ Validée';
  if(s==='Refusée')return dep?'❌ Dépôt refusé':ret?'❌ Retrait refusé':'❌ Refusée';
- if(dep&&r.cloudOk===false)return '⏳ Envoi en cours… (restez connecté)';
- if(dep&&s&&s.indexOf('Preuve')>=0)return '⏳ En attente de validation admin';
+ if(r.cloudOk===false)return '⏳ Envoi vers admin…';
+ if(dep&&(s==='À examiner'||s.indexOf('Preuve')>=0||s.indexOf('vérifier')>=0))return '⏳ En attente de validation';
+ if(ret&&s==='À examiner')return '⏳ Retrait en attente';
  return s||'En attente';
 }
 function toast(t){toastRoot.innerHTML='<div class="toast">'+esc(t)+'</div>';setTimeout(()=>toastRoot.innerHTML='',3000)}
@@ -931,7 +950,7 @@ function payBox(){
  return `<div style="padding:14px;margin:12px 0;border:1px solid #168ff0;border-radius:14px;background:linear-gradient(135deg,#082b4d,#0a172a)"><p style="margin:0 0 6px;font-size:12px">Numéro de téléphone</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:2px;color:#69d8ff">${PAY_NUMBER}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NUMBER}')">Copier le numéro</button></div><p style="margin:14px 0 6px;font-size:12px">Nom d’utilisateur</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:18px;color:#fff">${PAY_NAME}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail('${PAY_NAME}')">Copier le nom</button></div></div>`
 }
 function proofField(){
- return `<div class="field"><label>Capture d’écran de la transaction (obligatoire)</label><input id="depositProofFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la capture à l’administrateur</button><p class="muted" style="font-size:11px;margin-top:10px">Le dépôt reste en attente jusqu’à la vérification et la validation par l’administrateur.</p>`
+ return `<div class="field"><label>Capture d’écran (optionnelle — reste sur votre téléphone)</label><input id="depositProofFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la demande de dépôt</button><p class="muted" style="font-size:11px;margin-top:10px">La demande part directement à l’administrateur pour validation ou refus. La photo n’est pas transmise : elle reste uniquement dans votre historique local.</p>`
 }
 function showDepositInstructions(){
  const d=pendingDeposit,head=`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#3a1015;border:1px solid #ff4b5c;font-weight:800;font-size:14px;line-height:1.4">⚠️ Suivez bien les étapes et lisez ceci : c’est obligatoire.</div><p style="margin:0 0 10px">Montant : <b>${money(d.amount)}</b> · ${methodLogo(22)} <b>${methodLabel()}</b></p>`;
@@ -988,18 +1007,52 @@ function previewDepositProof(input){
 }
 async function submitDepositProof(){
  if(!current||!pendingDeposit||!pendingDeposit.amount){toast('Session ou demande de dépôt introuvable.');return}
- if(!pendingProofData){toast('Ajoutez la capture d’écran de la transaction avant l’envoi.');return}
  const d=pendingDeposit,type=pendingDepositMode==='JEKO'?'Dépôt Paiement':pendingDepositMode==='MTN'?'Dépôt MTN':(isCI()?'Dépôt Wave':'Dépôt Wave international');
- const req={id:Date.now(),type:type,phone:d.phone,amount:d.amount,status:'Preuve reçue — à vérifier',country:current.country||'',proof:pendingProofData,email:current.email,uid:current.uid,userName:current.name,created:new Date().toISOString(),cloudOk:false};
- try{db.requests.push(req);saveDB()}catch(e){db.requests=db.requests.filter(x=>x!==req);toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
- renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';
- toast('Envoi de votre preuve en cours…');
- let ok=false;
- for(var attempt=0;attempt<3&&!ok;attempt++){
-  ok=await cloudUpsertRequest(req);
-  if(!ok)await new Promise(function(r){setTimeout(r,1200)});
+ // Photo uniquement en local chez le client — JAMAIS envoyée au cloud / admin
+ const localProof=pendingProofData||'';
+ const req={
+  id:Date.now(),
+  type:type,
+  phone:d.phone,
+  amount:d.amount,
+  status:'À examiner',
+  country:current.country||'',
+  email:current.email,
+  uid:current.uid,
+  userName:current.name,
+  created:new Date().toISOString(),
+  cloudOk:false,
+  hasProof:!!localProof
+ };
+ // Garder la photo seulement dans le stockage local du navigateur client
+ if(localProof)req.proof=localProof;
+ try{
+  db.requests.push(req);
+  saveDB();
+ }catch(e){
+  // Si localStorage plein à cause de la photo, enregistrer sans photo
+  try{
+   delete req.proof;
+   db.requests=db.requests.filter(function(x){return x!==req});
+   db.requests.push(req);
+   saveDB();
+  }catch(e2){
+   db.requests=db.requests.filter(function(x){return Number(x.id)!==Number(req.id)});
+   toast('Impossible d’enregistrer. Réessayez sans photo.');
+   return;
+  }
  }
- toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée localement et sera renvoyée automatiquement toutes les 8 s. Ne la recréez pas — appuyez sur Actualiser côté admin dans 1 minute.');
+ renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';
+ toast('Envoi de la demande à l’administrateur…');
+ let ok=false;
+ for(var attempt=0;attempt<4&&!ok;attempt++){
+  ok=await cloudUpsertRequest(req);
+  if(!ok)await new Promise(function(r){setTimeout(r,900)});
+ }
+ toast(ok
+  ?'Demande envoyée. L’administrateur va valider ou refuser votre dépôt.'
+  :'Connexion lente : demande enregistrée. Elle sera renvoyée automatiquement. Ne la recréez pas.');
+ renderHistory();
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.10));withdrawBalance.textContent=money(current?current.withdraw:0)}
 function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
