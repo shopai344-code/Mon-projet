@@ -367,13 +367,13 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 
 <section id="admin" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Administration</h2><p class="subtext">Espace administrateur</p></div></div><div id="adminLoginBox" class="panel"><p class="muted" style="font-size:11px">Connectez-vous avec vos identifiants administrateur pour gérer les clients, dépôts, investissements et retraits.</p><div class="field"><label>Adresse e-mail administrateur</label><input id="adminUser" type="email" autocomplete="username" placeholder="email@gmail.com"></div><div class="field"><label>Mot de passe administrateur</label><input id="adminPass" type="password" autocomplete="current-password" placeholder="Mot de passe administrateur"></div><button class="wide" onclick="adminLogin()">Connexion administrateur</button><p class="muted" style="font-size:10px"></p></div>
 <div id="adminDashboard" class="hidden">
-<button class="wide" style="margin-bottom:12px;background:linear-gradient(105deg,#1599f6,#0756b5)" onclick="adminRefresh()">🔄 Actualiser les données clients</button>
 <div class="stats">
-<div class="stat"><small>Clients</small><strong id="adminUsers">0</strong></div>
-<div class="stat"><small>Investis</small><strong id="adminInvestedCount">0</strong></div>
-<div class="stat"><small>Non investis</small><strong id="adminNotInvestedCount">0</strong></div>
+<div class="stat"><small>Clients investis</small><strong id="adminInvestedCount">0</strong></div>
 <div class="stat"><small>Retraits en attente</small><strong id="adminWithdrawals">0</strong></div>
 </div>
+<span id="adminUsers" class="hidden">0</span>
+<span id="adminNotInvestedCount" class="hidden">0</span>
+<span id="adminDeposits" class="hidden">0</span>
 <div class="panel"><h3>Configuration Wave</h3>
 <div class="field"><label>Lien Wave Business</label><input id="waveLink" value="https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/"></div>
 <button class="wide" onclick="saveWave()">Enregistrer le lien</button>
@@ -553,6 +553,17 @@ async function cloudGetCollection(col){
   return out;
  }catch(e){console.warn('firestore get',col,e);return []}
 }
+async function cloudQueryByField(col,field,value){
+ try{
+  const fs=await fsReady();
+  if(!fs||value==null||value==='')return [];
+  const snap=await fs.collection(col).where(field,'==',value).limit(80).get();
+  const out=[];
+  snap.forEach(function(d){out.push(d.data())});
+  return out;
+ }catch(e){console.warn('query',col,field,e);return []}
+}
+
 async function fsUpsert(col,key,obj,opts){
  if(!obj||!key)return false;
  opts=opts||{};
@@ -669,28 +680,51 @@ function pushCloudNow(){
   Promise.all((db.investments||[]).map(function(i){return cloudUpsertInvestment(i)}))
  ]).then(function(){return true});
 }
-async function loadCloudDB(){
+async function loadCloudDB(full){
  try{
-  const [users,requests,investments]=await Promise.all([
-   cloudGetCollection(CLOUD_USERS),
-   cloudGetCollection(CLOUD_REQUESTS),
-   cloudGetCollection(CLOUD_INVESTMENTS)
-  ]);
-  // strip _id from cloud items for local use
   const clean=function(arr){return (arr||[]).map(function(x){var o=Object.assign({},x);delete o._id;return o})};
-  db.users=mergeByKey(db.users||[],clean(users),userKey);
-  db.requests=mergeByKey(db.requests||[],clean(requests),reqKey);
-  db.investments=mergeByKey(db.investments||[],clean(investments),invKey);
-  _markLoaded(CLOUD_USERS,users,userKey,db.users,userBody);
-  _markLoaded(CLOUD_REQUESTS,requests,reqKey,db.requests,reqMeta);
-  _markLoaded(CLOUD_INVESTMENTS,investments,invKey,db.investments,function(x){return x});
+  // Admin ou force : scan complet (1 fois à l’ouverture admin)
+  if(full||admin){
+   const [users,requests,investments]=await Promise.all([
+    cloudGetCollection(CLOUD_USERS),
+    cloudGetCollection(CLOUD_REQUESTS),
+    cloudGetCollection(CLOUD_INVESTMENTS)
+   ]);
+   db.users=mergeByKey(db.users||[],clean(users),userKey);
+   db.requests=mergeByKey(db.requests||[],clean(requests),reqKey);
+   db.investments=mergeByKey(db.investments||[],clean(investments),invKey);
+   _markLoaded(CLOUD_USERS,users,userKey,db.users,userBody);
+   _markLoaded(CLOUD_REQUESTS,requests,reqKey,db.requests,reqMeta);
+   _markLoaded(CLOUD_INVESTMENTS,investments,invKey,db.investments,function(x){return x});
+   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
+   return true;
+  }
+  // Client : uniquement SES documents (très peu de lectures)
+  if(!current)return false;
+  const uid=current.uid||'';
+  const phone=current.phone||'';
+  const email=(current.email||'').toLowerCase();
+  let myUsers=[],myReqs=[],myInvs=[];
+  if(uid){
+   myUsers=myUsers.concat(await cloudQueryByField(CLOUD_USERS,'uid',uid));
+   myReqs=myReqs.concat(await cloudQueryByField(CLOUD_REQUESTS,'uid',uid));
+   myInvs=myInvs.concat(await cloudQueryByField(CLOUD_INVESTMENTS,'uid',uid));
+  }
+  if(phone){
+   if(!myUsers.length)myUsers=myUsers.concat(await cloudQueryByField(CLOUD_USERS,'phone',phone));
+   myReqs=myReqs.concat(await cloudQueryByField(CLOUD_REQUESTS,'phone',phone));
+   myInvs=myInvs.concat(await cloudQueryByField(CLOUD_INVESTMENTS,'phone',phone));
+  }
+  db.users=mergeByKey(db.users||[],clean(myUsers),userKey);
+  db.requests=mergeByKey(db.requests||[],clean(myReqs),reqKey);
+  db.investments=mergeByKey(db.investments||[],clean(myInvs),invKey);
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
   return true;
  }catch(e){console.warn('cloud load',e);return false}
 }
 async function adminRefresh(){
  toast('Actualisation…');
- const ok=await loadCloudDB();
+ const ok=await loadCloudDB(true);
  renderAdmin();
  toast(ok?('Données à jour : '+(db.users||[]).length+' client(s), '+(db.requests||[]).length+' demande(s).'):'Sync impossible. Vérifiez Internet.');
 }
@@ -767,45 +801,47 @@ function showAuth(which){const isLogin=which==='login';authLoginForm.classList.t
 var cloudRefreshTimer=null;
 function startCloudRefresh(){
  if(cloudRefreshTimer)clearInterval(cloudRefreshTimer);
- cloudRefreshTimer=setInterval(async function(){
-  if(document.hidden)return;
-  if(!current&&!admin)return;
-  // D'abord renvoyer les demandes non encore arrivées au cloud (cloudOk===false)
+ if(window._tiPendingTimer)clearInterval(window._tiPendingTimer);
+ // Renvoi auto des demandes non parties (toutes les 90 s) — sans bouton
+ window._tiPendingTimer=setInterval(async function(){
+  if(document.hidden||!current||admin)return;
   try{
    const pendingCloud=(db.requests||[]).filter(function(r){return r.cloudOk===false||r.proofPending});
-   for(var i=0;i<pendingCloud.length;i++){
+   for(var i=0;i<Math.min(pendingCloud.length,2);i++){
     await cloudUpsertRequest(pendingCloud[i]);
    }
+   if(pendingCloud.length){try{renderHistory()}catch(e){}}
   }catch(e){}
-  const ok=await loadCloudDB();
+ },90000);
+ // Sync perso légère toutes les 5 min
+ cloudRefreshTimer=setInterval(async function(){
+  if(document.hidden)return;
+  if(admin)return;
+  if(!current)return;
+  const ok=await loadCloudDB(false);
   if(!ok)return;
-  if(current){
-   const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
-   if(refreshed){
-    if(current.refCode&&!refreshed.refCode)refreshed.refCode=current.refCode;
-    current=refreshed;
-    // Compte désactivé / banni : déconnecter immédiatement
-    if(isUserBlocked(current)){
-     toast(current.banned?'Votre compte a été banni.':'Votre compte a été désactivé. Contactez le support.');
-     try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}
-     current=null;
-     document.querySelector('.app')?.classList.add('gated');
-     const screen=document.getElementById('authScreen');if(screen)screen.style.display='flex';
-     showAuth('login');
-     return;
-    }
+  const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
+  if(refreshed){
+   if(current.refCode&&!refreshed.refCode)refreshed.refCode=current.refCode;
+   current=refreshed;
+   if(typeof isUserBlocked==='function'&&isUserBlocked(current)){
+    toast(current.banned?'Votre compte a été banni.':'Votre compte a été désactivé. Contactez le support.');
+    try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}
+    current=null;
+    document.querySelector('.app')?.classList.add('gated');
+    const scr=document.getElementById('authScreen');if(scr)scr.style.display='';
+    return;
    }
-   renderHome();renderAccount();renderHistory();
+   renderAccount();renderHome();renderHistory();
    if(document.getElementById('referral')&&document.getElementById('referral').classList.contains('active'))renderReferralNow();
   }
-  if(admin)renderAdmin();
- },(admin?30000:60000));
+ },300000);
 }
 
 function enterApp(){
  authScreen.style.display='none';
  document.querySelector('.app').classList.remove('gated');
- loadCloudDB().then(function(){
+ loadCloudDB(false).then(function(){
   if(current){
    const refreshed=db.users.find(x=> (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed)current=refreshed;
@@ -898,7 +934,7 @@ async function register(){
  setBusy('registerButton',true);
  try{await waitForFirebase();const user=await window.firebaseEmailRegister(email,pass);
   // Charger le cloud AVANT d'attacher le parrain pour trouver le sponsor
-  try{await loadCloudDB()}catch(e){}
+  try{await loadCloudDB(false)}catch(e){}
   const u={name,country,phone,email,uid:user.uid,deposit:0,withdraw:0,refEarnings:0,created:new Date().toISOString()};
   ensureRefCode(u);
   applySponsorOnRegister(u);
@@ -926,7 +962,7 @@ async function login(){
   go('admin');
   renderAdmin();
   toast('Session administrateur ouverte.');
-  loadCloudDB().then(function(){renderAdmin();startCloudRefresh();}).catch(function(){renderAdmin();});
+  loadCloudDB(true).then(function(){renderAdmin();}).catch(function(){renderAdmin();});
   return;
  }
  if(!validEmail(email)){toast('Adresse e-mail invalide.');return}
@@ -934,14 +970,14 @@ async function login(){
  try{
   await waitForFirebase();
   const user=await window.firebaseEmailLogin(email,pass);
-  try{await loadCloudDB()}catch(e){}
+  try{await loadCloudDB(false)}catch(e){}
   let u=db.users.find(x=>x.uid===user.uid||x.email===email);
   if(!u){u={name:email.split('@')[0],country:'',phone:email,email,uid:user.uid,deposit:0,withdraw:0,created:new Date().toISOString()};db.users.push(u);saveDB()}
   else if(!u.uid){u.uid=user.uid;saveDB()}
   current=u;ensureRefCode(u);welcomeIsRegister=false;
   try{
    await cloudUpsertUser(u);
-   await loadCloudDB();
+   await loadCloudDB(false);
    const refreshed=db.users.find(x=>x.uid===u.uid||x.email===u.email||(u.phone&&x.phone===u.phone));
    if(refreshed){current=refreshed;u=refreshed}
   }catch(e){}
@@ -1110,7 +1146,16 @@ async function submitDepositProof(){
  renderHistory();
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.10));withdrawBalance.textContent=money(current?current.withdraw:0)}
-function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
+function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}
+const today=new Date();const tk=today.getFullYear()+'-'+(today.getMonth()+1)+'-'+today.getDate();
+const alreadyToday=(db.requests||[]).some(function(r){
+ if(!(r.type&&r.type.indexOf('Retrait ')===0))return false;
+ if(r.phone!==current.phone&&!(current.uid&&r.uid===current.uid))return false;
+ if(['Refusée'].includes(r.status))return false;
+ const d=new Date(r.created);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()===tk;
+});
+if(alreadyToday){toast('Un seul retrait par jour. Revenez demain.');return}
+const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true,cloudOk:false});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée (1 max/jour). Solde réservé.');if(typeof cloudUpsertRequest==='function'){const last=db.requests[db.requests.length-1];cloudUpsertRequest(last).catch(function(){})}}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
  const hasDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)&&r.status==='Validée');
@@ -1156,28 +1201,21 @@ function addRequest(type,amount,daily,days,longTerm){
 }
 function renderHistory(){
  historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone||(current.uid&&r.uid===current.uid)||(current.email&&r.email&&r.email.toLowerCase()===current.email.toLowerCase())).slice().reverse().map(function(r){
-  const stuck=r.cloudOk===false;
-  const resend=stuck?'<br><button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="resendRequestToCloud('+Number(r.id)+')">Renvoyer à l’admin</button>':'';
-  return '<div class="historyitem"><span>'+esc(r.type)+'<br><small class="muted">'+new Date(r.created).toLocaleString('fr-FR')+'</small>'+resend+'</span><span style="text-align:right">'+money(r.amount)+'<br><span class="status">'+esc(statusLabel(r))+'</span></span></div>';
+  return '<div class="historyitem"><span>'+esc(r.type)+'<br><small class="muted">'+new Date(r.created).toLocaleString('fr-FR')+'</small></span><span style="text-align:right">'+money(r.amount)+'<br><span class="status">'+esc(statusLabel(r))+'</span></span></div>';
  }).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>';
 }
-async function resendRequestToCloud(id){
- const r=(db.requests||[]).find(function(x){return Number(x.id)===Number(id)});
- if(!r){toast('Demande introuvable.');return}
- toast('Renvoi en cours…');
- r.cloudOk=false;
- const ok=await cloudUpsertRequest(r);
- if(ok){toast('Demande envoyée à l’administrateur. Attendez la validation.');}
- else toast('Échec réseau. Réessayez dans quelques secondes.');
- renderHistory();renderHome();
-}
 function modal(title,body){modalRoot.innerHTML=`<div class="modalback" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><h3>${esc(title)}</h3><button class="iconbtn" onclick="closeModal()">✕</button></div>${body}</div></div>`}function closeModal(){modalRoot.innerHTML=''}
-function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=(pass==='Moussa'||pass==='Moussa99');if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;renderAdmin();toast('Accès administrateur ouvert.');loadCloudDB().then(function(){renderAdmin();startCloudRefresh();}).catch(function(){renderAdmin();});}
-function adminLogout(){admin=false;renderAdmin()}
+function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=(pass==='Moussa'||pass==='Moussa99');if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;renderAdmin();toast('Accès administrateur ouvert.');loadCloudDB(false).then(function(){renderAdmin();startCloudRefresh();}).catch(function(){renderAdmin();});}
+function adminLogout(){window._adminCloudLoaded=false;admin=false;renderAdmin()}
 function renderAdmin(){
  adminLoginBox.classList.toggle('hidden',admin);
  adminDashboard.classList.toggle('hidden',!admin);
  if(!admin)return;
+ // Une seule charge cloud par session admin (pas de bouton Actualiser)
+ if(!window._adminCloudLoaded){
+  window._adminCloudLoaded=true;
+  loadCloudDB(true).then(function(){try{renderAdmin()}catch(e){}}).catch(function(){});
+ }
  const users=db.users||[];
  const reqs=db.requests||[];
  const invs=db.investments||[];
@@ -1677,7 +1715,7 @@ async function renderReferral(){
  ensureRefCode(current);
  renderReferralNow();
  try{
-  await loadCloudDB();
+  await loadCloudDB(false);
   if(current){
    const f=(db.users||[]).find(x=>(x.uid&&x.uid===current.uid)||(x.email&&current.email&&x.email.toLowerCase()===current.email.toLowerCase()));
    if(f){
@@ -1962,7 +2000,7 @@ if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
         // Conserve la session Firebase après actualisation; seul un vrai sign-out ramène à la connexion.
         if(!user){return;}
         if(current && current.uid===user.uid){return;}
-        try{await loadCloudDB();}catch(e){}
+        try{await loadCloudDB(false);}catch(e){}
         let restored=(db.users||[]).find(function(x){return x.uid===user.uid || (user.email && x.email && x.email.toLowerCase()===user.email.toLowerCase());});
         if(!restored){
           restored={uid:user.uid,email:user.email||'',name:(user.email||'').split('@')[0]||'Client',country:'',phone:user.email||'',deposit:0,withdraw:0};
