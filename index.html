@@ -309,6 +309,32 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="rp-hero-row"><div class="rp-hero-col"><strong id="rpTotal">0</strong><span>Investisseurs invités</span></div><div class="rp-sep"></div><div class="rp-hero-col"><strong id="rpRewards">FCFA 0</strong><span>Récompenses cumulées</span></div></div></div>
 <div id="rpLevels"></div>
 </div>
+<div class="panel" style="margin-top:14px">
+<h3>👥 Mon équipe de parrainage</h3>
+<p class="muted" style="font-size:11px;margin-bottom:10px">Chaque compte voit <strong>uniquement sa propre équipe</strong> : tous les parrainés (N1 à N4), ceux qui ont investi, ceux qui n’ont pas encore investi, et ceux qui sont actifs.</p>
+<div class="stats" style="margin-bottom:10px">
+<div class="stat"><small>Niveau 1</small><strong id="teamN1">0</strong></div>
+<div class="stat"><small>Niveau 2</small><strong id="teamN2">0</strong></div>
+<div class="stat"><small>Niveau 3</small><strong id="teamN3">0</strong></div>
+<div class="stat"><small>Niveau 4</small><strong id="teamN4">0</strong></div>
+</div>
+<div class="stats" style="margin-bottom:10px">
+<div class="stat"><small>Total équipe</small><strong id="teamTotal">0</strong></div>
+<div class="stat"><small>Ont investi</small><strong id="teamInvested" style="color:var(--green)">0</strong></div>
+<div class="stat"><small>Pas encore investi</small><strong id="teamNotInvested" style="color:#ffd477">0</strong></div>
+<div class="stat"><small>Actifs</small><strong id="teamActive" style="color:#67f4ff">0</strong></div>
+</div>
+<div class="stats" style="margin-bottom:12px">
+<div class="stat"><small>Gains commissions %</small><strong id="refTotalEarn" style="color:var(--green)">0 F</strong></div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="teamFilters">
+<button type="button" class="amount-option team-filter selected" data-filter="all" onclick="setTeamFilter('all',this)">Tous</button>
+<button type="button" class="amount-option team-filter" data-filter="invested" onclick="setTeamFilter('invested',this)">Ont investi</button>
+<button type="button" class="amount-option team-filter" data-filter="not" onclick="setTeamFilter('not',this)">Pas investi</button>
+<button type="button" class="amount-option team-filter" data-filter="active" onclick="setTeamFilter('active',this)">Actifs</button>
+</div>
+<div id="refList"><p class="muted" style="font-size:11px">Connectez-vous pour voir votre équipe.</p></div>
+</div>
 </section>
 <section id="blog" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Blog & communauté</h2><p class="subtext">Roue, parrainage et bonus capture</p></div></div>
 <div class="product-hero"><div><span class="pill">TECH INSIGHTS</span><h3>Le hub TECHNOLOGIE INVESTI</h3><p>Actualités, bonus communauté et activités.</p></div><div class="hero-ear">⌁</div></div>
@@ -1445,28 +1471,110 @@ function claimRefReward(lv){
  saveDB();renderReferralNow();try{renderAccount();renderHome();renderHistory()}catch(e){}
  toast(rpFmt(L.reward)+' crédités sur votre solde de retrait !');
 }
+function userIdentityKey(u){
+ if(!u)return '';
+ return String(u.uid||u.email||u.phone||'').toLowerCase();
+}
+function getDirectFilleulsOf(sponsor){
+ if(!sponsor)return [];
+ const seen={};const out=[];
+ (db.users||[]).forEach(function(u){
+  if(!isDirectFilleul(u,sponsor))return;
+  const k=userIdentityKey(u);
+  if(k&&seen[k])return;if(k)seen[k]=true;
+  out.push(u);
+ });
+ return out;
+}
+function buildMyTeam(root, maxLevel){
+ // Chaque compte voit UNIQUEMENT sa propre descente (équipe personnelle)
+ maxLevel=maxLevel||4;
+ const levels={1:[],2:[],3:[],4:[]};
+ const seen={};const rootKey=userIdentityKey(root);
+ if(rootKey)seen[rootKey]=true;
+ let frontier=getDirectFilleulsOf(root).map(function(u){return {u:u,lv:1}});
+ while(frontier.length){
+  const next=[];
+  frontier.forEach(function(item){
+   const u=item.u,lv=item.lv;
+   if(lv>maxLevel)return;
+   const k=userIdentityKey(u);
+   if(k&&seen[k])return;if(k)seen[k]=true;
+   if(levels[lv])levels[lv].push(u);
+   if(lv<maxLevel){
+    getDirectFilleulsOf(u).forEach(function(child){
+     next.push({u:child,lv:lv+1});
+    });
+   }
+  });
+  frontier=next;
+ }
+ return levels;
+}
+function refIsActive(u){
+ if(!u)return false;
+ return (db.investments||[]).some(function(i){
+  return i.phone&&i.phone===u.phone&&i.status==='active';
+ });
+}
+var _teamFilter='all';
+var _teamCache=null;
+function setTeamFilter(f,btn){
+ _teamFilter=f||'all';
+ document.querySelectorAll('.team-filter').forEach(function(b){b.classList.toggle('selected',b===btn||b.getAttribute('data-filter')===_teamFilter)});
+ renderTeamList();
+}
+function renderTeamList(){
+ const list=document.getElementById('refList');
+ if(!list||!_teamCache)return;
+ const team=_teamCache;
+ const rows=[];
+ [1,2,3,4].forEach(function(lv){
+  team[lv].forEach(function(u){
+   const invested=refHasInvested(u);
+   const active=refIsActive(u);
+   if(_teamFilter==='invested'&&!invested)return;
+   if(_teamFilter==='not'&&invested)return;
+   if(_teamFilter==='active'&&!active)return;
+   const when=u.created?new Date(u.created).toLocaleDateString('fr-FR'):'';
+   let badge='', badgeColor='#ffd477';
+   if(active){badge='Actif';badgeColor='#36c98f'}
+   else if(invested){badge='A investi';badgeColor='#67f4ff'}
+   else{badge='Pas investi';badgeColor='#ffd477'}
+   rows.push('<div class="historyitem"><span><strong>'+esc(u.name||'Membre')+'</strong><br><small class="muted">'+esc(u.phone||u.email||'')+(when?' · inscrit le '+when:'')+'</small><br><small style="color:'+badgeColor+';font-weight:700">'+badge+'</small></span><span class="status">N'+lv+'</span></div>');
+  });
+ });
+ const emptyMsg={
+  all:'Aucun membre dans votre équipe pour le moment. Partagez votre lien personnel : chaque inscription via votre lien rejoint <b>votre</b> équipe uniquement.',
+  invested:'Personne de votre équipe n’a encore investi.',
+  not:'Tous les membres de votre équipe ont déjà investi.',
+  active:'Aucun plan actif dans votre équipe pour le moment.'
+ };
+ list.innerHTML=rows.length?rows.join(''):('<p class="muted" style="font-size:11px">'+(emptyMsg[_teamFilter]||emptyMsg.all)+'</p>');
+}
 function renderReferralNow(){
  if(!current)return;
  ensureRefCode(current);
  const link=getReferralLink();
  const inp=document.getElementById('referralLinkInput');if(inp)inp.value=link;
- const myCode=String(current.refCode||'').toUpperCase();
- const directs=(db.users||[]).filter(function(u){return isDirectFilleul(u,current)});
- // dédupliquer par uid/email/phone
- const seen={};const unique=[];
- directs.forEach(function(u){
-  const k=String(u.uid||u.email||u.phone||Math.random());
-  if(seen[k])return;seen[k]=true;unique.push(u);
+ const team=buildMyTeam(current,4);
+ _teamCache=team;
+ const n1=team[1].length,n2=team[2].length,n3=team[3].length,n4=team[4].length;
+ const total=n1+n2+n3+n4;
+ let invCount=0,notCount=0,actCount=0;
+ [1,2,3,4].forEach(function(lv){
+  team[lv].forEach(function(u){
+   if(refHasInvested(u))invCount++;else notCount++;
+   if(refIsActive(u))actCount++;
+  });
  });
- const elC=document.getElementById('refCountDirect');if(elC)elC.textContent=unique.length;renderRefLevels(refInvestedCount(current));
+ const setTxt=function(id,v){const el=document.getElementById(id);if(el)el.textContent=v};
+ setTxt('teamN1',n1);setTxt('teamN2',n2);setTxt('teamN3',n3);setTxt('teamN4',n4);setTxt('teamTotal',total);
+ setTxt('teamInvested',invCount);setTxt('teamNotInvested',notCount);setTxt('teamActive',actCount);
+ setTxt('refCountDirect',n1);
+ renderRefLevels(refInvestedCount(current));
  const elE=document.getElementById('refTotalEarn');if(elE)elE.textContent=money(current.refEarnings||0);
- const list=document.getElementById('refList');
- if(list){
-  list.innerHTML=unique.length?unique.map(function(u){
-   const when=u.created?new Date(u.created).toLocaleDateString('fr-FR'):'';
-   return '<div class="historyitem"><span><strong>'+esc(u.name||'Filleul')+'</strong><br><small class="muted">'+esc(u.phone||u.email||'')+(when?' · inscrit le '+when:'')+'</small></span><span class="status">Niveau 1</span></div>';
-  }).join(''):'<p class="muted" style="font-size:11px">Aucun filleul pour le moment. Partagez votre lien personnel ci-dessus.</p>';
- }
+ renderTeamList();
 }
 let pendingBlogProof='';
 function previewBlogProof(input){
