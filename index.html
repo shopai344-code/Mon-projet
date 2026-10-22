@@ -493,8 +493,15 @@ function mergeRequest(prev,item){
  if(fin(prev)&&!fin(item)){w=prev;l=item}
  else if(fin(prev)&&fin(item)&&String(prev.reviewedAt||'')>String(item.reviewedAt||'')){w=prev;l=item}
  const o=Object.assign({},l,w);
- if((!o.proof||o.proof==='[image]')&&l.proof&&l.proof!=='[image]')o.proof=l.proof;
- if(item.cloudOk!==undefined)o.cloudOk=item.cloudOk;
+ // Conserver la vraie photo locale si le cloud n'a que le marqueur [image]
+ const isImg=function(p){return p&&String(p).indexOf('data:image')===0};
+ if(!isImg(o.proof)){
+  if(isImg(l.proof))o.proof=l.proof;
+  else if(isImg(w.proof))o.proof=w.proof;
+ }
+ if(l.hasProof||w.hasProof||isImg(o.proof))o.hasProof=true;
+ if(item.cloudOk===true||prev.cloudOk===true)o.cloudOk=true;
+ else if(item.cloudOk!==undefined)o.cloudOk=item.cloudOk;
  return o;
 }
 async function fsReady(){
@@ -512,18 +519,28 @@ async function cloudGetCollection(col){
   return out;
  }catch(e){console.warn('firestore get',col,e);return []}
 }
-async function fsUpsert(col,key,obj){
+async function fsUpsert(col,key,obj,opts){
  if(!obj||!key)return false;
+ opts=opts||{};
  try{
   const fs=await fsReady();
   if(!fs)return false;
   const body=JSON.parse(JSON.stringify(obj));
   delete body._id;delete body.cloudOk;
-  if(body.proof&&String(body.proof).length>200000)body.proof='[image]';
+  // Preuve image : trop lourde pour Firestore → on n'envoie jamais le base64 complet
+  if(body.proof){
+   if(opts.stripProof||String(body.proof).indexOf('data:image')===0){
+    body.hasProof=true;
+    body.proof='[image]';
+   }else if(String(body.proof).length>50000){
+    body.hasProof=true;
+    body.proof='[image]';
+   }
+  }
   const sig=JSON.stringify(body);
   const id=fsDocId(key);
   if(_fsSynced[col+'/'+id]===sig)return true;
-  body.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+  try{body.updatedAt=firebase.firestore.FieldValue.serverTimestamp()}catch(e){body.updatedAt=new Date().toISOString()}
   await fs.collection(col).doc(id).set(body,{merge:true});
   _fsSynced[col+'/'+id]=sig;
   return true;
@@ -538,8 +555,27 @@ async function cloudUpsertUser(u){
 }
 async function cloudUpsertRequest(r){
  if(!r)return false;
- const ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),r);
- if(ok&&r.cloudOk===false){r.cloudOk=true;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}try{if(current){renderHistory();renderHome()}}catch(e){}}
+ // 1) Toujours envoyer d'abord les métadonnées SANS la photo (léger → admin voit la demande)
+ const meta=Object.assign({},r);
+ if(meta.proof&&String(meta.proof).indexOf('data:image')===0){
+  meta.hasProof=true;
+  meta.proof='[image]';
+ }
+ let ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),meta,{stripProof:true});
+ if(!ok){
+  // 2e tentative sans aucun champ preuve
+  try{
+   const light=Object.assign({},r);
+   delete light.proof;
+   light.hasProof=!!r.proof;
+   ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),light,{stripProof:true});
+  }catch(e){}
+ }
+ if(ok&&r.cloudOk===false){
+  r.cloudOk=true;
+  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
+  try{if(current){renderHistory();renderHome()}}catch(e){}
+ }
  return ok;
 }
 async function cloudUpsertInvestment(inv){return inv&&fsUpsert(CLOUD_INVESTMENTS,invKey(inv),inv)}
@@ -588,10 +624,12 @@ async function adminRefresh(){
 
 function money(n){return Number(n||0).toLocaleString('fr-FR')+' FCFA'}function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function proofButton(r,inline){
- if(!r||!r.proof)return inline?'-':'';
+ if(!r)return inline?'-':'';
  const pre=inline?'':'<br>';
- if(String(r.proof).indexOf('data:image')===0)return pre+'<button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="viewProof('+Number(r.id)+')">📷 Voir la photo</button>';
- return pre+'<small style="color:#ffd477">Photo non reçue (trop lourde). Demandez au client de la renvoyer.</small>';
+ if(r.proof&&String(r.proof).indexOf('data:image')===0)return pre+'<button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="viewProof('+Number(r.id)+')">📷 Voir la photo</button>';
+ if(r.hasProof||r.proof==='[image]')return pre+'<small style="color:#ffd477">Photo envoyée côté client (non stockée cloud). Vérifiez le montant Wave puis validez.</small>';
+ if(!r.proof)return inline?'-':'';
+ return pre+'<small style="color:#ffd477">Photo non reçue. Demandez au client de la renvoyer.</small>';
 }
 function viewProof(id){
  const r=(db.requests||[]).find(x=>Number(x.id)===Number(id));
@@ -608,15 +646,24 @@ function viewProof(id){
 }
 function compressImageFile(file,cb){
  const reader=new FileReader();
- reader.onload=()=>{const img=new Image();img.onload=()=>{const max=900,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);let q=.7,d=c.toDataURL('image/jpeg',q);while(d.length>180000&&q>.3){q-=.1;d=c.toDataURL('image/jpeg',q)}cb(d)};img.onerror=()=>toast('Impossible de lire cette image.');img.src=reader.result};
+ reader.onload=()=>{const img=new Image();img.onload=()=>{
+  const max=720,scale=Math.min(1,max/Math.max(img.width,img.height));
+  const c=document.createElement('canvas');
+  c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);
+  c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+  let q=.55,d=c.toDataURL('image/jpeg',q);
+  while(d.length>120000&&q>.22){q-=.08;d=c.toDataURL('image/jpeg',q)}
+  cb(d);
+ };img.onerror=()=>toast('Impossible de lire cette image.');img.src=reader.result};
  reader.readAsDataURL(file);
 }
 function statusLabel(r){
  const s=(r&&r.status)||'',t=(r&&r.type)||'',dep=/^Dépôt/.test(t),ret=/^Retrait/.test(t);
  if(s==='Validée')return dep?'✅ Dépôt validé':ret?'✅ Retrait validé':'✅ Validée';
  if(s==='Refusée')return dep?'❌ Dépôt refusé':ret?'❌ Retrait refusé':'❌ Refusée';
- if(dep&&r.cloudOk===false)return '⏳ Envoi en cours… (connexion lente)';
- return s;
+ if(dep&&r.cloudOk===false)return '⏳ Envoi en cours… (restez connecté)';
+ if(dep&&s&&s.indexOf('Preuve')>=0)return '⏳ En attente de validation admin';
+ return s||'En attente';
 }
 function toast(t){toastRoot.innerHTML='<div class="toast">'+esc(t)+'</div>';setTimeout(()=>toastRoot.innerHTML='',3000)}
 function go(id){if(id==='recharge'){try{updateDepositOptions()}catch(e){}}document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.navitem').forEach(x=>x.classList.toggle('active',x.dataset.go===id||(id==='withdraw'&&x.dataset.go==='recharge')||(id==='referral'&&x.dataset.go==='account')));if(id==='products')renderProducts(duration);if(id==='home')renderHome();if(id==='history')renderHistory();if(id==='account')renderAccount();if(id==='admin')renderAdmin();if(id==='investments')renderInvestments();if(id==='referral')renderReferral();if(id==='wheel')renderWheel();window.scrollTo(0,0)}
@@ -999,7 +1046,23 @@ function addRequest(type,amount,daily,days,longTerm){
  toast('Investissement activé ! Suivez votre plan dans Mes investissements.');
  closeModal();
 }
-function renderHistory(){historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone).slice().reverse().map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${new Date(r.created).toLocaleString('fr-FR')}</small></span><span style="text-align:right">${money(r.amount)}<br><span class="status">${esc(statusLabel(r))}</span></span></div>`).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>'}
+function renderHistory(){
+ historyList.innerHTML=current?db.requests.filter(r=>r.phone===current.phone||(current.uid&&r.uid===current.uid)||(current.email&&r.email&&r.email.toLowerCase()===current.email.toLowerCase())).slice().reverse().map(function(r){
+  const stuck=r.cloudOk===false;
+  const resend=stuck?'<br><button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="resendRequestToCloud('+Number(r.id)+')">Renvoyer à l’admin</button>':'';
+  return '<div class="historyitem"><span>'+esc(r.type)+'<br><small class="muted">'+new Date(r.created).toLocaleString('fr-FR')+'</small>'+resend+'</span><span style="text-align:right">'+money(r.amount)+'<br><span class="status">'+esc(statusLabel(r))+'</span></span></div>';
+ }).join('')||'<p class="muted">Aucune demande.</p>':'<p class="muted">Connectez-vous pour consulter votre activité.</p>';
+}
+async function resendRequestToCloud(id){
+ const r=(db.requests||[]).find(function(x){return Number(x.id)===Number(id)});
+ if(!r){toast('Demande introuvable.');return}
+ toast('Renvoi en cours…');
+ r.cloudOk=false;
+ const ok=await cloudUpsertRequest(r);
+ if(ok){toast('Demande envoyée à l’administrateur. Attendez la validation.');}
+ else toast('Échec réseau. Réessayez dans quelques secondes.');
+ renderHistory();renderHome();
+}
 function modal(title,body){modalRoot.innerHTML=`<div class="modalback" onclick="if(event.target===this)closeModal()"><div class="modal"><div class="row" style="display:flex;justify-content:space-between;align-items:center"><h3>${esc(title)}</h3><button class="iconbtn" onclick="closeModal()">✕</button></div>${body}</div></div>`}function closeModal(){modalRoot.innerHTML=''}
 function adminLogin(){const user=(adminUser.value||'').trim().toLowerCase();const pass=adminPass.value||'';const okEmail=user==='msourabi610@gmail.com'||user==='msourabi610';const okPass=(pass==='Moussa'||pass==='Moussa99');if(!okEmail||!okPass){toast('Identifiants administrateur incorrects.');return}admin=true;renderAdmin();toast('Accès administrateur ouvert.');loadCloudDB().then(function(){renderAdmin();startCloudRefresh();}).catch(function(){renderAdmin();});}
 function adminLogout(){admin=false;renderAdmin()}
