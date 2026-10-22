@@ -320,7 +320,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 
 <section id="account" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Mon compte</h2><p class="subtext">Informations de votre profil.</p></div></div><div id="loggedOut" class="panel hidden"><p>Vous devez vous connecter pour accéder à votre compte.</p><button class="wide" onclick="logout()">Retour à la connexion</button></div><div id="loggedIn" class="panel"><h3 id="accountName">Mon compte</h3><p class="muted" id="accountPhone"></p><div class="stats"><div class="stat"><small>Solde dépôt</small><strong id="accountDeposit">0 F</strong></div><div class="stat"><small>Solde retrait</small><strong id="accountWithdraw">0 F</strong></div></div><button class="wide" onclick="logout()">Déconnexion</button></div>
 <button class="wide" style="margin-top:10px" onclick="go('investments')">📊 Voir mes investissements</button>
-<a class="wide" href="https://t.me/+beUsG34stBA3Yjlk" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:12px;background:linear-gradient(90deg,#ff3347,#c20f2b)">💬 Service client TECHNOLOGIE INVEST</a>
+<a class="wide" href="https://t.me/Bostapi" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;text-decoration:none;margin-top:12px;background:linear-gradient(90deg,#ff3347,#c20f2b)">💬 Service client TECHNOLOGIE INVEST</a>
 
 </section>
 
@@ -404,12 +404,31 @@ function mergeByKey(localArr, cloudArr, keyFn){
    if(v!==undefined&&v!==null&&v!=='')cleaned[key]=v;
   });
   if(item.deposit!=null||item.withdraw!=null){
+   // Préférer le solde le plus récent (balanceUpdatedAt) pour ne pas restaurer un montant déjà retiré/investi
+   var prevTs=String(prev.balanceUpdatedAt||'');
+   var itemTs=String(item.balanceUpdatedAt||'');
+   var useItemBal=(itemTs&&(!prevTs||itemTs>prevTs));
+   var usePrevBal=(prevTs&&(!itemTs||prevTs>itemTs));
+   var dep,wdr;
+   if(useItemBal){dep=Number(item.deposit)||0;wdr=Number(item.withdraw)||0;}
+   else if(usePrevBal){dep=Number(prev.deposit)||0;wdr=Number(prev.withdraw)||0;}
+   else {
+     // Pas d'horodatage : prendre le plus bas pour withdraw (déductions) et pour deposit aussi (investissements)
+     dep=Math.min(Number(prev.deposit)||0,Number(item.deposit)!=null?Number(item.deposit):Number(prev.deposit)||0);
+     if(item.deposit==null&&prev.deposit!=null)dep=Number(prev.deposit)||0;
+     if(prev.deposit==null&&item.deposit!=null)dep=Number(item.deposit)||0;
+     // Si les deux existent sans timestamp, privilégier le minimum (évite de ré-créditer un retrait validé)
+     if(item.deposit!=null&&prev.deposit!=null)dep=Math.min(Number(prev.deposit)||0,Number(item.deposit)||0);
+     if(item.withdraw!=null&&prev.withdraw!=null)wdr=Math.min(Number(prev.withdraw)||0,Number(item.withdraw)||0);
+     else if(item.withdraw!=null)wdr=Number(item.withdraw)||0;
+     else wdr=Number(prev.withdraw)||0;
+   }
    map[k]=Object.assign({},prev,cleaned,{
-    deposit:Math.max(Number(prev.deposit)||0,Number(item.deposit)||0),
-    withdraw:Math.max(Number(prev.withdraw)||0,Number(item.withdraw)||0),
+    deposit:dep,
+    withdraw:wdr,
+    balanceUpdatedAt:useItemBal?itemTs:(usePrevBal?prevTs:(itemTs||prevTs||'')),
     refEarnings:Math.max(Number(prev.refEarnings)||0,Number(item.refEarnings)||0),
     wheelSpins:Math.max(Number(prev.wheelSpins)||0,Number(item.wheelSpins)||0),
-    // conserver le parrainage cloud si le local n'en a pas
     sponsorCode:cleaned.sponsorCode||prev.sponsorCode||'',
     sponsorPhone:cleaned.sponsorPhone||prev.sponsorPhone||'',
     refCode:cleaned.refCode||prev.refCode||''
@@ -867,7 +886,7 @@ async function submitDepositProof(){
  toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée et sera renvoyée automatiquement. Ne la recréez pas.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
-function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name});saveDB();renderHistory();renderAdmin();toast('Demande de retrait '+method+' envoyée. En attente de validation.')}
+function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
  const hasDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)&&r.status==='Validée');
@@ -884,6 +903,7 @@ function addRequest(type,amount,daily,days,longTerm){
  const u=db.users.find(x=>x.phone===current.phone);
  if(u){
   u.deposit=Math.max(0,(Number(u.deposit)||0)-amount);
+  u.balanceUpdatedAt=new Date().toISOString();
   current=u;
  }
  if(!Array.isArray(db.investments))db.investments=[];
@@ -958,23 +978,39 @@ function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===
  const u=findUserForRequest(r);
  if(u){
   u.deposit=(Number(u.deposit)||0)+Number(r.amount||0);
+  u.balanceUpdatedAt=new Date().toISOString();
   if(current&&(current.phone===u.phone||current.email===u.email||current.uid===u.uid))current=u;
+  try{cloudUpsertUser(u)}catch(e){}
   toast('Dépôt crédité : '+money(r.amount)+' pour '+esc(u.name||u.phone));
  }else{
   toast('Dépôt validé mais client introuvable (vérifiez le numéro).');
  }
-}if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Souscription')){const u=findUserForRequest(r);if(u){u.deposit=Math.max(0,(Number(u.deposit)||0)-Number(r.amount||0));if(current&&current.phone===u.phone)current=u}if(!Array.isArray(db.investments))db.investments=[];const already=db.investments.some(inv=>inv.requestId===r.id);if(!already){db.investments.push({id:Date.now()+Math.floor(Math.random()*1000),requestId:r.id,phone:r.phone,type:r.type,amount:Number(r.amount)||0,daily:Number(r.daily)||0,days:Number(r.days)||0,longTerm:!!r.longTerm,startDate:new Date().toISOString(),status:'active',credited:false});payReferralCommissions(r.phone,Number(r.amount)||0)}}
+}if(status==='Validée'&&was!=='Validée'&&r.type.startsWith('Souscription')){const u=findUserForRequest(r);if(u){u.deposit=Math.max(0,(Number(u.deposit)||0)-Number(r.amount||0));u.balanceUpdatedAt=new Date().toISOString();if(current&&current.phone===u.phone)current=u;try{cloudUpsertUser(u)}catch(e){}}if(!Array.isArray(db.investments))db.investments=[];const already=db.investments.some(inv=>inv.requestId===r.id);if(!already){db.investments.push({id:Date.now()+Math.floor(Math.random()*1000),requestId:r.id,phone:r.phone,type:r.type,amount:Number(r.amount)||0,daily:Number(r.daily)||0,days:Number(r.days)||0,longTerm:!!r.longTerm,startDate:new Date().toISOString(),status:'active',credited:false});payReferralCommissions(r.phone,Number(r.amount)||0)}}
 if(status==='Validée'&&was!=='Validée'&&r.type&&r.type.indexOf('Retrait ')===0){
  const u=findUserForRequest(r);
  if(u){
   const amt=Number(r.amount)||0;
-  const fee=Number(r.fee)||Math.round(amt*0.01);
-  u.withdraw=Math.max(0,(Number(u.withdraw)||0)-amt);
-  if(current&&current.phone===u.phone)current=u;
+  // Si le solde a déjà été réservé à la demande, ne pas re-déduire
+  if(!r.balanceReserved){
+   u.withdraw=Math.max(0,(Number(u.withdraw)||0)-amt);
+  }
+  u.balanceUpdatedAt=new Date().toISOString();
+  if(current&&(current.phone===u.phone||(current.uid&&u.uid&&current.uid===u.uid)))current=u;
+  try{cloudUpsertUser(u)}catch(e){}
  }
 }
 if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0){
- /* solde inchangé si refus */
+ // Rembourser le montant réservé si la demande est refusée
+ const u=findUserForRequest(r);
+ if(u){
+  const amt=Number(r.amount)||0;
+  if(r.balanceReserved||was==='À examiner'||was==='En attente'){
+   u.withdraw=(Number(u.withdraw)||0)+amt;
+   u.balanceUpdatedAt=new Date().toISOString();
+   if(current&&(current.phone===u.phone||(current.uid&&u.uid&&current.uid===u.uid)))current=u;
+   try{cloudUpsertUser(u)}catch(e){}
+  }
+ }
 }
 saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
 // Cases = gains réels uniquement (crédibles). Poids = probabilités.
@@ -1060,6 +1096,7 @@ function spinWheel(){
  if(!u){toast('Compte introuvable.');return}
  u.wheelSpins=(Number(u.wheelSpins)||0)+1;
  u.withdraw=(Number(u.withdraw)||0)+prize;
+ u.balanceUpdatedAt=new Date().toISOString();
  current=u;
  db.requests.push({id:Date.now(),type:'Bonus roue',phone:u.phone,amount:prize,status:'Validée',created:new Date().toISOString(),reviewedAt:new Date().toISOString(),email:u.email,uid:u.uid,userName:u.name});
  saveDB();
@@ -1102,6 +1139,7 @@ function processMaturedInvestments(){
    const u=findUserByPhone(inv.phone)||db.users.find(x=>x.phone===inv.phone);
    if(u){
     u.withdraw=(Number(u.withdraw)||0)+payout;
+    u.balanceUpdatedAt=new Date().toISOString();
     if(current&&(current.phone===u.phone||current.email===u.email))current=u;
    }
    inv.status='completed';inv.credited=true;inv.completedAt=new Date().toISOString();inv.payout=payout;
@@ -1114,6 +1152,7 @@ function processMaturedInvestments(){
    const u=findUserByPhone(inv.phone)||db.users.find(x=>x.phone===inv.phone);
    if(u){
     u.withdraw=(Number(u.withdraw)||0)+capital;
+    u.balanceUpdatedAt=new Date().toISOString();
     if(current&&(current.phone===u.phone||current.email===u.email))current=u;
    }
    inv.capitalReturned=true;
@@ -1146,6 +1185,7 @@ function claimLongTermGain(invId){
  const u=db.users.find(x=>x.phone===current.phone||x.email===current.email);
  if(!u){toast('Compte introuvable.');return}
  u.withdraw=(Number(u.withdraw)||0)+daily;
+ u.balanceUpdatedAt=new Date().toISOString();
  inv.claimedDays=claimed+1;
  inv.claimedTotal=(Number(inv.claimedTotal)||0)+daily;
  inv.lastClaimAt=new Date().toISOString();
@@ -1388,6 +1428,7 @@ function claimRefReward(lv){
  if(count<L.goal){toast('Objectif non atteint.');return}
  u.refClaimed.push(lv);
  u.withdraw=(Number(u.withdraw)||0)+L.reward;
+ u.balanceUpdatedAt=new Date().toISOString();
  current=u;
  db.requests.push({id:Date.now(),type:'Récompense parrainage Lv'+lv,phone:u.phone,amount:L.reward,status:'Validée',created:new Date().toISOString(),reviewedAt:new Date().toISOString(),email:u.email,uid:u.uid,userName:u.name});
  saveDB();renderReferralNow();try{renderAccount();renderHome();renderHistory()}catch(e){}
@@ -1437,6 +1478,7 @@ function submitBlogProof(){
  if(blogBonusDoneToday(u)){toast('Vous avez déjà envoyé votre capture aujourd’hui. Revenez demain.');const st0=document.getElementById('blogProofStatus');if(st0)st0.textContent='Une seule capture par jour. Revenez demain.';return}
  if(!pendingBlogProof){toast('Ajoutez une capture d’écran.');return}
  u.withdraw=(Number(u.withdraw)||0)+50;
+ u.balanceUpdatedAt=new Date().toISOString();
  u.lastBlogBonusDay=todayKey();
  current=u;
  db.requests.push({id:Date.now(),type:'Bonus capture retrait',phone:u.phone,amount:50,status:'Validée',created:new Date().toISOString(),reviewedAt:new Date().toISOString(),proof:pendingBlogProof,email:u.email,uid:u.uid,userName:u.name});
