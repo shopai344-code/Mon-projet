@@ -390,7 +390,12 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>Clients non investis</h3>
 <div id="adminNotInvestedTable" class="tablewrap"></div>
 </div>
-<div class="panel"><h3>Tous les clients (soldes & numéros)</h3>
+<div class="panel"><h3>Parrains & équipes</h3>
+<p class="muted" style="font-size:11px;margin:0 0 10px">Liste de tous les comptes qui ont au moins un filleul direct, avec le nombre de personnes parrainées (direct + équipe).</p>
+<div id="adminSponsorsTable" class="tablewrap"></div>
+</div>
+<div class="panel"><h3>Tous les clients (soldes, statut & actions)</h3>
+<p class="muted" style="font-size:11px;margin:0 0 10px">Désactiver = connexion bloquée temporairement. Bannir = compte définitivement interdit. Réactiver = rétablir l’accès.</p>
 <div id="adminUsersTable" class="tablewrap"></div>
 </div>
 <button class="wide" onclick="adminLogout()">Fermer la session admin</button>
@@ -541,10 +546,13 @@ async function cloudUpsertInvestment(inv){return inv&&fsUpsert(CLOUD_INVESTMENTS
 
 function saveDB(){
  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.error(e)}
- // sync important records in background
+ // sync important records in background — prioriser les demandes non encore envoyées au cloud
  try{
   (db.users||[]).forEach(function(u){cloudUpsertUser(u)});
-  (db.requests||[]).slice(-30).forEach(function(r){cloudUpsertRequest(r)});
+  var reqs=db.requests||[];
+  var pendingCloud=reqs.filter(function(r){return r.cloudOk===false});
+  var rest=reqs.filter(function(r){return r.cloudOk!==false}).slice(-30);
+  pendingCloud.concat(rest).forEach(function(r){cloudUpsertRequest(r)});
   (db.investments||[]).slice(-30).forEach(function(i){cloudUpsertInvestment(i)});
  }catch(e){console.warn(e)}
 }
@@ -638,6 +646,13 @@ function startCloudRefresh(){
  if(cloudRefreshTimer)clearInterval(cloudRefreshTimer);
  cloudRefreshTimer=setInterval(async function(){
   if(!current&&!admin)return;
+  // D'abord renvoyer les demandes non encore arrivées au cloud (cloudOk===false)
+  try{
+   const pendingCloud=(db.requests||[]).filter(function(r){return r.cloudOk===false});
+   for(var i=0;i<pendingCloud.length;i++){
+    await cloudUpsertRequest(pendingCloud[i]);
+   }
+  }catch(e){}
   const ok=await loadCloudDB();
   if(!ok)return;
   try{
@@ -647,15 +662,24 @@ function startCloudRefresh(){
   if(current){
    const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed){
-    // préserver le code de parrainage local si le cloud n'en a pas encore
     if(current.refCode&&!refreshed.refCode)refreshed.refCode=current.refCode;
     current=refreshed;
+    // Compte désactivé / banni : déconnecter immédiatement
+    if(isUserBlocked(current)){
+     toast(current.banned?'Votre compte a été banni.':'Votre compte a été désactivé. Contactez le support.');
+     try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}
+     current=null;
+     document.querySelector('.app')?.classList.add('gated');
+     const screen=document.getElementById('authScreen');if(screen)screen.style.display='flex';
+     showAuth('login');
+     return;
+    }
    }
    renderHome();renderAccount();renderHistory();
    if(document.getElementById('referral')&&document.getElementById('referral').classList.contains('active'))renderReferralNow();
   }
   if(admin)renderAdmin();
- },12000);
+ },8000);
 }
 
 function enterApp(){
@@ -801,6 +825,12 @@ async function login(){
    const refreshed=db.users.find(x=>x.uid===u.uid||x.email===u.email||(u.phone&&x.phone===u.phone));
    if(refreshed){current=refreshed;u=refreshed}
   }catch(e){}
+  if(isUserBlocked(u)){
+   toast(u.banned?'Votre compte a été banni. Contactez le support.':'Votre compte a été désactivé. Contactez le support.');
+   try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}
+   current=null;
+   return;
+  }
   showWelcome();
  }catch(e){
   const msg=(window.firebaseAuthError&&window.firebaseAuthError(e))||'E-mail ou mot de passe incorrect.';
@@ -917,8 +947,12 @@ async function submitDepositProof(){
  try{db.requests.push(req);saveDB()}catch(e){db.requests=db.requests.filter(x=>x!==req);toast('La preuve est trop volumineuse pour le stockage. Réduisez la taille de l’image puis réessayez.');return}
  renderHistory();renderAdmin();closeModal();clearPendingDeposit();pendingDeposit=null;pendingProofData='';
  toast('Envoi de votre preuve en cours…');
- const ok=await cloudUpsertRequest(req);
- toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée et sera renvoyée automatiquement. Ne la recréez pas.');
+ let ok=false;
+ for(var attempt=0;attempt<3&&!ok;attempt++){
+  ok=await cloudUpsertRequest(req);
+  if(!ok)await new Promise(function(r){setTimeout(r,1200)});
+ }
+ toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée localement et sera renvoyée automatiquement toutes les 8 s. Ne la recréez pas — appuyez sur Actualiser côté admin dans 1 minute.');
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.10));withdrawBalance.textContent=money(current?current.withdraw:0)}
 function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
@@ -992,21 +1026,72 @@ function renderAdmin(){
  adminRequests.innerHTML=pendingRequests.length?'<table><tr><th>Type / client</th><th>Montant</th><th>Actions</th></tr>'+pendingRequests.slice().reverse().map(function(r){
   return '<tr><td>'+esc(r.type)+'<br>'+esc(r.userName||'')+' '+esc(r.phone)+(r.email?'<br>'+esc(r.email):'')+(r.beneficiary?'<br>Vers : '+esc(r.beneficiary):'')+(r.reference?'<br>Réf. : '+esc(r.reference):'')+proofButton(r)+'</td><td>'+money(r.amount)+(r.fee?'<br><small>Frais '+money(r.fee)+'</small>':'')+'</td><td>'+esc(r.status)+'<br><button class="smallbtn" style="background:#168b50" onclick="setRequestStatus('+r.id+',\'Validée\')">Accepter</button> <button class="smallbtn" style="background:#d92f42" onclick="setRequestStatus('+r.id+',\'Refusée\')">Refuser</button></td></tr>';
  }).join('')+'</table>':'<p class="muted">Aucune demande en attente.</p>';
- function userRow(u){
+ function userRowSimple(u){
   return '<tr><td>'+esc(u.name)+'</td><td>'+esc(u.phone)+'</td><td>'+esc(u.country||'-')+'</td><td>'+money(u.deposit||0)+'</td><td>'+money(u.withdraw||0)+'</td><td>'+esc(u.email||'-')+'</td></tr>';
  }
+ function userStatusLabel(u){
+  if(u.banned)return '<span style="color:#ff526a;font-weight:800">Banni</span>';
+  if(u.disabled)return '<span style="color:#ffd477;font-weight:800">Désactivé</span>';
+  return '<span style="color:#36c98f;font-weight:800">Actif</span>';
+ }
+ function userActions(u){
+  const key=esc(userIdentityKey(u)||u.phone||u.email||'');
+  let btns='';
+  if(u.banned||u.disabled){
+   btns+='<button class="smallbtn" style="background:#168b50;margin:2px" data-uk="'+key+'" data-st="active" onclick="setUserAccountStatus(this.getAttribute(\'data-uk\'),this.getAttribute(\'data-st\'))">Réactiver</button>';
+  }
+  if(!u.disabled&&!u.banned){
+   btns+='<button class="smallbtn" style="background:#b8860b;margin:2px" data-uk="'+key+'" data-st="disabled" onclick="setUserAccountStatus(this.getAttribute(\'data-uk\'),this.getAttribute(\'data-st\'))">Désactiver</button>';
+  }
+  if(!u.banned){
+   btns+='<button class="smallbtn" style="background:#d92f42;margin:2px" data-uk="'+key+'" data-st="banned" onclick="setUserAccountStatus(this.getAttribute(\'data-uk\'),this.getAttribute(\'data-st\'))">Bannir</button>';
+  }
+  return btns;
+ }
+ function userRowFull(u){
+  return '<tr><td>'+esc(u.name)+'<br><small class="muted">'+esc(u.email||'-')+'</small></td><td>'+esc(u.phone)+'<br><small class="muted">'+esc(u.country||'-')+'</small></td><td>'+money(u.deposit||0)+'<br><small>Retrait: '+money(u.withdraw||0)+'</small></td><td>'+userStatusLabel(u)+'</td><td>'+userActions(u)+'</td></tr>';
+ }
  const head='<table><tr><th>Nom</th><th>Téléphone</th><th>Pays</th><th>Solde dépôt</th><th>Solde retrait</th><th>E-mail</th></tr>';
- adminUsersTable.innerHTML=users.length?head+users.map(userRow).join('')+'</table>':'<p class="muted">Aucun client inscrit pour le moment.</p>';
+ const headFull='<table><tr><th>Client</th><th>Contact</th><th>Soldes</th><th>Statut</th><th>Actions</th></tr>';
+ adminUsersTable.innerHTML=users.length?headFull+users.map(userRowFull).join('')+'</table>':'<p class="muted">Aucun client inscrit pour le moment.</p>';
  var invTable=document.getElementById('adminInvestedTable');
- if(invTable)invTable.innerHTML=investedUsers.length?head+investedUsers.map(userRow).join('')+'</table>':'<p class="muted">Personne n’a encore investi.</p>';
+ if(invTable)invTable.innerHTML=investedUsers.length?head+investedUsers.map(userRowSimple).join('')+'</table>':'<p class="muted">Personne n’a encore investi.</p>';
  var notTable=document.getElementById('adminNotInvestedTable');
- if(notTable)notTable.innerHTML=notInvestedUsers.length?head+notInvestedUsers.map(userRow).join('')+'</table>':'<p class="muted">Tous les clients ont investi.</p>';
+ if(notTable)notTable.innerHTML=notInvestedUsers.length?head+notInvestedUsers.map(userRowSimple).join('')+'</table>':'<p class="muted">Tous les clients ont investi.</p>';
  var blogBox=document.getElementById('adminBlogProofs');
  if(blogBox){
   const blogs=reqs.filter(function(r){return r.type==='Bonus capture retrait'}).slice().reverse();
   blogBox.innerHTML=blogs.length?'<table><tr><th>Client</th><th>Montant</th><th>Date</th><th>Preuve</th></tr>'+blogs.map(function(r){
    return '<tr><td>'+esc(r.phone)+'</td><td>'+money(r.amount)+'</td><td>'+esc(new Date(r.created).toLocaleString('fr-FR'))+'</td><td>'+proofButton(r,true)+'</td></tr>';
   }).join('')+'</table>':'<p class="muted">Aucune capture blog reçue.</p>';
+ }
+ // Parrains
+ var spBox=document.getElementById('adminSponsorsTable');
+ if(spBox){
+  const sponsorRows=[];
+  users.forEach(function(sp){
+   const directs=getDirectFilleulsOf(sp);
+   if(!directs.length)return;
+   const team=buildMyTeam(sp,4);
+   const totalTeam=(team[1]||[]).length+(team[2]||[]).length+(team[3]||[]).length+(team[4]||[]).length;
+   const investedN=directs.filter(function(u){return refHasInvested(u)}).length;
+   const today=new Date();today.setHours(0,0,0,0);
+   const todayCount=directs.filter(function(u){
+    if(!u.created)return false;
+    const d=new Date(u.created);d.setHours(0,0,0,0);
+    return d.getTime()===today.getTime();
+   }).length;
+   sponsorRows.push({sp:sp,directs:directs.length,team:totalTeam,invested:investedN,today:todayCount});
+  });
+  sponsorRows.sort(function(a,b){return b.directs-a.directs});
+  if(!sponsorRows.length){
+   spBox.innerHTML='<p class="muted">Aucun parrain avec filleul pour le moment.</p>';
+  } else {
+   spBox.innerHTML='<table><tr><th>Parrain</th><th>Code</th><th>Filleuls directs</th><th>Équipe totale</th><th>Ont investi</th><th>Inscrits aujourd\'hui</th></tr>'+sponsorRows.map(function(row){
+    const u=row.sp;
+    return '<tr><td>'+esc(u.name||'-')+'<br><small class="muted">'+esc(u.phone||u.email||'')+'</small></td><td><b>'+esc(u.refCode||'-')+'</b></td><td><b>'+row.directs+'</b></td><td>'+row.team+'</td><td>'+row.invested+'</td><td>'+row.today+'</td></tr>';
+   }).join('')+'</table>';
+  }
  }
 }
 function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)){
@@ -1048,6 +1133,41 @@ if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0
  }
 }
 saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
+
+function isUserBlocked(u){
+ if(!u)return false;
+ return !!(u.banned||u.disabled);
+}
+function findUserByIdentityKey(key){
+ key=String(key||'').toLowerCase();
+ if(!key)return null;
+ return (db.users||[]).find(function(x){
+  return userIdentityKey(x)===key || String(x.phone||'')===key || String(x.email||'').toLowerCase()===key || String(x.uid||'')===key;
+ })||null;
+}
+function setUserAccountStatus(key,status){
+ if(!admin){toast('Accès admin requis.');return}
+ const u=findUserByIdentityKey(key);
+ if(!u){toast('Client introuvable.');return}
+ status=String(status||'active');
+ if(status==='banned'){
+  if(!confirm('Bannir définitivement « '+(u.name||u.phone||'')+' » ? Il ne pourra plus se connecter.'))return;
+  u.banned=true;u.disabled=true;
+ }else if(status==='disabled'){
+  if(!confirm('Désactiver temporairement « '+(u.name||u.phone||'')+' » ?'))return;
+  u.disabled=true;u.banned=false;
+ }else{
+  u.banned=false;u.disabled=false;
+ }
+ u.statusUpdatedAt=new Date().toISOString();
+ u.balanceUpdatedAt=new Date().toISOString();
+ try{cloudUpsertUser(u)}catch(e){}
+ saveDB();
+ renderAdmin();
+ const msg=status==='banned'?'Compte banni.':(status==='disabled'?'Compte désactivé.':'Compte réactivé.');
+ toast(msg);
+}
+
 // Cases = gains réels uniquement (crédibles). Poids = probabilités.
 const WHEEL_SEGMENTS=[50,100,200,300,500,50,100,200,300,500,100,200];
 const WHEEL_ODDS=[{amount:50,weight:42},{amount:100,weight:28},{amount:200,weight:16},{amount:300,weight:9},{amount:500,weight:5}];
@@ -1678,6 +1798,11 @@ if(location.hash==='#admin'){setTimeout(function(){go('admin')},300)}
           db.users.push(restored);try{saveDB();}catch(e){}
         }
         current=restored;ensureRefCode(current);
+        if(typeof isUserBlocked==='function'&&isUserBlocked(current)){
+          try{auth.signOut()}catch(e){}
+          current=null;
+          return;
+        }
         authScreen.style.display='none';
         document.querySelector('.app')?.classList.remove('gated');
         renderAccount();renderHome();renderHistory();go('home');startCloudRefresh();
