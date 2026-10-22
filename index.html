@@ -282,7 +282,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <button type="button" onclick="startDeposit('MTN')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:linear-gradient(100deg,#ffcc00,#e0a000);color:#171717;font-weight:800;font-size:16px;text-align:left"><span id="logoMtn"></span><span>Payer avec MTN Mobile Money<br><small style="font-weight:600;opacity:.75">Tous les pays</small></span></button></div>
 </section>
 
-<section id="withdraw" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Demande de retrait</h2><p class="subtext">Frais prévus : 1 % (à confirmer avant lancement)</p></div></div>
+<section id="withdraw" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Demande de retrait</h2><p class="subtext">Frais de retrait : 10 %</p></div></div>
 <div class="panel"><div class="stats"><div class="stat"><small>Solde disponible</small><strong id="withdrawBalance">0 F</strong></div><div class="stat"><small>Frais estimés</small><strong id="withdrawFee">0 F</strong></div></div><div class="field"><label>Montant demandé (minimum 1 000 FCFA)</label><input id="withdrawAmount" type="number" min="1000" placeholder="Ex. 5000" oninput="calcFee()"></div><div class="field"><label>Moyen de retrait</label><select id="withdrawMethod"><option value="Wave">Wave</option><option value="MTN Mobile Money">MTN Mobile Money</option></select></div><div class="field"><label>Numéro du bénéficiaire</label><input id="withdrawPhone" type="tel" placeholder="Numéro Wave ou MTN"></div><div class="note">Votre demande sera examinée par l’administrateur. Le retrait est traité après validation.</div><button class="wide" onclick="submitWithdraw()">Envoyer la demande</button></div>
 </section>
 
@@ -290,7 +290,16 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 
 <section id="referral" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Parrainage</h2><p class="subtext">Invitez des amis et débloquez des récompenses</p></div></div>
 <div class="panel"><h3>Votre lien d’invitation personnel</h3>
-<p class="muted" style="font-size:11px;margin-bottom:8px">Chaque compte a un lien unique. Partagez <strong>uniquement le vôtre</strong> : la personne arrive directement sur la plateforme et est enregistrée comme votre filleul. Plus vous invitez, plus vous montez de niveau et plus vos récompenses augmentent.</p>
+<p class="muted" style="font-size:11px;margin-bottom:8px">Chaque compte a un lien unique. Partagez <strong>uniquement le vôtre</strong> : la personne arrive directement sur la plateforme et est enregistrée comme votre filleul.</p>
+<div class="note" style="margin:10px 0">
+<strong>Commissions automatiques sur chaque investissement :</strong><br>
+• Niveau 1 (filleul direct) : <b>10 %</b><br>
+• Niveau 2 : <b>5 %</b><br>
+• Niveau 3 : <b>3 %</b><br>
+• Niveau 4 : <b>1 %</b><br>
+<small>Ces pourcentages s’ajoutent aux récompenses de niveaux Lv1 à Lv100 (ex. 3 investisseurs = 800 FCFA, etc.).</small>
+</div>
+<p class="muted" style="font-size:11px;margin-bottom:8px">Plus vous invitez, plus vous montez de niveau et plus vos récompenses augmentent.</p>
 <div class="field"><input id="referralLinkInput" readonly style="font-size:11px" value="Connectez-vous pour générer votre lien"></div>
 <button class="wide" onclick="copyReferralLink()">📋 Copier mon lien personnel</button>
 <button class="wide" style="margin-top:8px;background:linear-gradient(90deg,#2a3140,#1a1f2a);border:1px solid #3a4150" onclick="renderReferral()">🔄 Actualiser mes filleuls</button>
@@ -304,7 +313,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <section id="blog" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Blog & communauté</h2><p class="subtext">Roue, parrainage et bonus capture</p></div></div>
 <div class="product-hero"><div><span class="pill">TECH INSIGHTS</span><h3>Le hub TECHNOLOGIE INVESTI</h3><p>Actualités, bonus communauté et activités.</p></div><div class="hero-ear">⌁</div></div>
 <div class="panel"><h3>🎡 Roue bonus</h3><p class="muted" style="font-size:11px">Un tour offert par investissement long terme : gagnez de 50 à 500 FCFA.</p><button class="wide" onclick="go('wheel')">Ouvrir la roue bonus ↗</button></div>
-<div class="panel"><h3>♧ Parrainer des personnes</h3><p class="muted" style="font-size:11px">Invitez des investisseurs et débloquez les récompenses des niveaux Lv1 à Lv100.</p><button class="wide" onclick="go('referral')">Accéder au parrainage ↗</button></div>
+<div class="panel"><h3>♧ Parrainer des personnes</h3><p class="muted" style="font-size:11px">Invitez des investisseurs : commissions 10 % / 5 % / 3 % / 1 % + récompenses Lv1 à Lv100.</p><button class="wide" onclick="go('referral')">Accéder au parrainage ↗</button></div>
 <div class="panel"><h3>📸 Bonus capture de retrait</h3>
 <p class="muted" style="font-size:12px;line-height:1.55;margin-bottom:10px">Envoyez une <b>capture d'écran de votre retrait</b> et recevez <b style="color:#36c98f">50 FCFA</b> sur votre solde de retrait (1 fois par jour).</p>
 <div class="field"><label>Capture d'écran du retrait</label>
@@ -366,7 +375,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <script>
 const SHORT=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],LONG=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],KEY='ti_demo_v2',WAVE='https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/';
 const REF_BASE='https://shopai344-code.github.io/Mon-projet/';
-const REF_RATES=[0.05,0.03,0.01,0.005]; // Niveaux 1 à 4 : 5 %, 3 %, 1 %, 0,5 %
+const REF_RATES=[0.10,0.05,0.03,0.01]; // Niveaux 1 à 4 : 10 %, 5 %, 3 %, 1 % (en plus des récompenses Lv1-Lv100)
 const CLEANUP_KEY='ti_demo_fake_data_cleanup_v1';
 let db=loadDB(),current=null,admin=false,chosenAmount=5000,duration=30;
 function loadDB(){
@@ -885,8 +894,8 @@ async function submitDepositProof(){
  const ok=await cloudUpsertRequest(req);
  toast(ok?'Preuve envoyée à l’administrateur. Dépôt en attente de validation.':'Connexion lente : votre demande est enregistrée et sera renvoyée automatiquement. Ne la recréez pas.');
 }
-function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.01));withdrawBalance.textContent=money(current?current.withdraw:0)}
-function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.01),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
+function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.10));withdrawBalance.textContent=money(current?current.withdraw:0)}
+function submitWithdraw(){if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}const a=Number(withdrawAmount.value),phone=withdrawPhone.value.trim(),method=(document.getElementById('withdrawMethod')?.value||'Wave');if(!Number.isFinite(a)||a<1000||!phone){toast('Entrez un montant d’au moins 1 000 FCFA et le numéro du bénéficiaire.');return}const invested=db.requests.some(r=>r.phone===current.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée');if(!invested){toast('Retrait impossible : vous devez avoir un investissement validé.');return}if(a>(Number(current.withdraw)||0)){toast('Solde de retrait disponible insuffisant.');return}const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée. Solde réservé en attente de validation.')}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
  const hasDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)&&r.status==='Validée');
@@ -1326,7 +1335,7 @@ function findSponsorOf(u){
  return sp||null;
 }
 function payReferralCommissions(investorPhone,investAmount){
-  return; // ancien système de commissions 5/3/1/0,5 % supprimé : remplacé par les récompenses de niveaux Lv1-Lv100
+ // Commissions en % sur chaque investissement (en plus des récompenses de niveaux Lv1-Lv100)
  const rates=REF_RATES;
  let phone=investorPhone;
  for(let level=0;level<rates.length;level++){
@@ -1338,8 +1347,10 @@ function payReferralCommissions(investorPhone,investAmount){
   if(commission>0){
    sponsor.withdraw=(Number(sponsor.withdraw)||0)+commission;
    sponsor.refEarnings=(Number(sponsor.refEarnings)||0)+commission;
-   db.requests.push({id:Date.now()+level,type:'Commission parrainage N'+(level+1),phone:sponsor.phone,amount:commission,from:investorPhone,level:level+1,status:'Validée',created:new Date().toISOString()});
+   sponsor.balanceUpdatedAt=new Date().toISOString();
+   db.requests.push({id:Date.now()+level,type:'Commission parrainage N'+(level+1)+' ('+Math.round(rates[level]*100)+' %)',phone:sponsor.phone,amount:commission,from:investorPhone,level:level+1,status:'Validée',created:new Date().toISOString(),reviewedAt:new Date().toISOString(),email:sponsor.email,uid:sponsor.uid,userName:sponsor.name});
    if(current&&current.phone===sponsor.phone)current=sponsor;
+   try{cloudUpsertUser(sponsor)}catch(e){}
   }
   phone=sponsor.phone;
  }
