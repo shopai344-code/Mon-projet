@@ -381,20 +381,20 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel"><h3>Demandes à valider (dépôts, investissements, retraits)</h3>
 <div id="adminRequests" class="tablewrap"></div>
 </div>
-<div class="panel"><h3>Captures blog (bonus retrait)</h3>
+<div class="panel hidden"><h3>Captures blog (bonus retrait)</h3>
 <div id="adminBlogProofs" class="tablewrap"></div>
 </div>
 <div class="panel"><h3>Clients ayant investi</h3>
 <div id="adminInvestedTable" class="tablewrap"></div>
 </div>
-<div class="panel"><h3>Clients non investis</h3>
+<div class="panel hidden"><h3>Clients non investis</h3>
 <div id="adminNotInvestedTable" class="tablewrap"></div>
 </div>
 <div class="panel"><h3>Parrains & équipes</h3>
 <p class="muted" style="font-size:11px;margin:0 0 10px">Liste de tous les comptes qui ont au moins un filleul direct, avec le nombre de personnes parrainées (direct + équipe).</p>
 <div id="adminSponsorsTable" class="tablewrap"></div>
 </div>
-<div class="panel"><h3>Tous les clients (soldes, statut & actions)</h3>
+<div class="panel hidden"><h3>Tous les clients (soldes, statut & actions)</h3>
 <p class="muted" style="font-size:11px;margin:0 0 10px">Désactiver = connexion bloquée temporairement. Bannir = compte définitivement interdit. Réactiver = rétablir l’accès.</p>
 <div id="adminUsersTable" class="tablewrap"></div>
 </div>
@@ -422,7 +422,32 @@ function loadDB(){
 var CLOUD_USERS='Users';
 var CLOUD_REQUESTS='requests';
 var CLOUD_INVESTMENTS='investments';
-var _fsSynced={};
+var _fsSynced=(function(){try{return JSON.parse(localStorage.getItem('ti_fs_sigs')||'{}')||{}}catch(e){return {}}})();
+var _fsSigTimer=null,_proofCache={},_proofBusy={};
+var CLOUD_PROOFS='proofs';
+function _fsSigSave(){if(_fsSigTimer)return;_fsSigTimer=setTimeout(function(){_fsSigTimer=null;try{localStorage.setItem('ti_fs_sigs',JSON.stringify(_fsSynced))}catch(e){}},1500)}
+function _hash(t){var h=5381;for(var i=0;i<t.length;i++){h=((h<<5)+h+t.charCodeAt(i))|0}return String(h)+':'+t.length}
+function _stable(o){if(o===null||typeof o!=='object')return JSON.stringify(o);if(Array.isArray(o))return '['+o.map(_stable).join(',')+']';return '{'+Object.keys(o).sort().filter(function(k){return o[k]!==undefined}).map(function(k){return JSON.stringify(k)+':'+_stable(o[k])}).join(',')+'}'}
+function _normBody(obj,opts){
+ opts=opts||{};
+ var body=JSON.parse(JSON.stringify(obj));
+ delete body._id;delete body.cloudOk;delete body.updatedAt;
+ if(body.proof){
+  if(opts.stripProof||String(body.proof).indexOf('data:image')===0||String(body.proof).length>50000){body.hasProof=true;body.proof='[image]'}
+ }
+ return body;
+}
+function _markLoaded(col,cloudArr,keyFn,localArr,bodyFn){
+ var map={};(localArr||[]).forEach(function(x){var k=keyFn(x);if(k)map[k]=x});
+ (cloudArr||[]).forEach(function(c){
+  var k=keyFn(c),l=map[k];if(!k||!l)return;
+  try{
+   var hc=_hash(_stable(_normBody(c)));
+   if(hc===_hash(_stable(_normBody(bodyFn(l),{stripProof:true}))))_fsSynced[col+'/'+fsDocId(k)]=hc;
+  }catch(e){}
+ });
+ _fsSigSave();
+}
 
 function userKey(u){return String((u&&(u.uid||u.email||u.phone))||'')}
 function reqKey(r){return String((r&&r.id)||'')}
@@ -513,9 +538,18 @@ async function cloudGetCollection(col){
  try{
   const fs=await fsReady();
   if(!fs)return [];
-  const snap=await fs.collection(col).get();
+  var q=fs.collection(col),since=null;
+  try{since=JSON.parse(localStorage.getItem('ti_sync_'+col)||'null')}catch(e){}
+  if(since&&since.s!=null)q=q.where('updatedAt','>',new firebase.firestore.Timestamp(since.s,since.n||0));
+  const snap=await q.get();
   const out=[];
-  snap.forEach(function(d){out.push(d.data())});
+  var maxS=since?since.s:null,maxN=since?(since.n||0):0;
+  snap.forEach(function(d){
+   var x=d.data();out.push(x);
+   var u=x&&x.updatedAt;
+   if(u&&typeof u.seconds==='number'){if(maxS===null||u.seconds>maxS||(u.seconds===maxS&&u.nanoseconds>maxN)){maxS=u.seconds;maxN=u.nanoseconds||0}}
+  });
+  if(maxS!==null){try{localStorage.setItem('ti_sync_'+col,JSON.stringify({s:maxS,n:maxN}))}catch(e){}}
   return out;
  }catch(e){console.warn('firestore get',col,e);return []}
 }
@@ -525,37 +559,48 @@ async function fsUpsert(col,key,obj,opts){
  try{
   const fs=await fsReady();
   if(!fs)return false;
-  const body=JSON.parse(JSON.stringify(obj));
-  delete body._id;delete body.cloudOk;
-  // Preuve image : trop lourde pour Firestore → on n'envoie jamais le base64 complet
-  if(body.proof){
-   if(opts.stripProof||String(body.proof).indexOf('data:image')===0){
-    body.hasProof=true;
-    body.proof='[image]';
-   }else if(String(body.proof).length>50000){
-    body.hasProof=true;
-    body.proof='[image]';
-   }
-  }
-  const sig=JSON.stringify(body);
+  const body=_normBody(obj,opts);
+  const sig=_hash(_stable(body));
   const id=fsDocId(key);
   if(_fsSynced[col+'/'+id]===sig)return true;
   try{body.updatedAt=firebase.firestore.FieldValue.serverTimestamp()}catch(e){body.updatedAt=new Date().toISOString()}
   await fs.collection(col).doc(id).set(body,{merge:true});
-  _fsSynced[col+'/'+id]=sig;
+  _fsSynced[col+'/'+id]=sig;_fsSigSave();
   return true;
- }catch(e){console.warn('firestore upsert',col,e);return false}
+ }catch(e){console.warn('firestore upsert',col,e);window._lastFsError=(e&&e.code)||String(e);return false}
 }
-async function cloudUpsertUser(u){
- if(!u)return;
+function userBody(u){
  const body=Object.assign({},u);
  body.role=body.role||'client';
  body.investi=(db.requests||[]).some(function(r){return r.phone===u.phone&&r.type&&r.type.startsWith('Souscription')&&r.status==='Validée'});
- return fsUpsert(CLOUD_USERS,userKey(u),body);
+ return body;
 }
-async function cloudUpsertRequest(r){
- if(!r)return false;
- // Admin ne reçoit JAMAIS la photo : uniquement type, montant, client, statut
+async function cloudUpsertUser(u){
+ if(!u)return;
+ return fsUpsert(CLOUD_USERS,userKey(u),userBody(u));
+}
+async function cloudUploadProof(r){
+ if(!r||!r.proof||String(r.proof).indexOf('data:image')!==0||_proofBusy[r.id])return false;
+ _proofBusy[r.id]=true;
+ try{
+  const fs=await fsReady();if(!fs)return false;
+  await fs.collection(CLOUD_PROOFS).doc(String(r.id)).set({id:r.id,uid:r.uid||'',phone:r.phone||'',proof:r.proof,created:r.created||new Date().toISOString()});
+  r.proofPending=false;r.hasProof=true;delete r.proof;
+  try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
+  return true;
+ }catch(e){console.warn('proof upload',e);window._lastFsError=(e&&e.code)||String(e);return false}
+ finally{delete _proofBusy[r.id]}
+}
+async function cloudFetchProof(id){
+ if(_proofCache[id])return _proofCache[id];
+ try{
+  const fs=await fsReady();if(!fs)return '';
+  const d=await fs.collection(CLOUD_PROOFS).doc(String(id)).get();
+  if(d.exists&&d.data().proof){_proofCache[id]=d.data().proof;return _proofCache[id]}
+ }catch(e){console.warn('proof fetch',e)}
+ return '';
+}
+function reqMeta(r){
  const meta={
   id:r.id,
   type:r.type,
@@ -580,6 +625,11 @@ async function cloudUpsertRequest(r){
   from:r.from||'',
   level:r.level
  };
+ return meta;
+}
+async function cloudUpsertRequest(r){
+ if(!r)return false;
+ const meta=reqMeta(r);
  let ok=await fsUpsert(CLOUD_REQUESTS,reqKey(r),meta,{stripProof:true});
  if(!ok){
   try{
@@ -590,6 +640,7 @@ async function cloudUpsertRequest(r){
    },{stripProof:true});
   }catch(e){}
  }
+ if(ok&&r.proofPending&&r.proof)cloudUploadProof(r);
  if(ok&&r.cloudOk===false){
   r.cloudOk=true;
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
@@ -605,8 +656,8 @@ function saveDB(){
  try{
   (db.users||[]).forEach(function(u){cloudUpsertUser(u)});
   var reqs=db.requests||[];
-  var pendingCloud=reqs.filter(function(r){return r.cloudOk===false});
-  var rest=reqs.filter(function(r){return r.cloudOk!==false}).slice(-30);
+  var pendingCloud=reqs.filter(function(r){return r.cloudOk===false||r.proofPending});
+  var rest=reqs.filter(function(r){return r.cloudOk!==false&&!r.proofPending}).slice(-30);
   pendingCloud.concat(rest).forEach(function(r){cloudUpsertRequest(r)});
   (db.investments||[]).slice(-30).forEach(function(i){cloudUpsertInvestment(i)});
  }catch(e){console.warn(e)}
@@ -630,6 +681,9 @@ async function loadCloudDB(){
   db.users=mergeByKey(db.users||[],clean(users),userKey);
   db.requests=mergeByKey(db.requests||[],clean(requests),reqKey);
   db.investments=mergeByKey(db.investments||[],clean(investments),invKey);
+  _markLoaded(CLOUD_USERS,users,userKey,db.users,userBody);
+  _markLoaded(CLOUD_REQUESTS,requests,reqKey,db.requests,reqMeta);
+  _markLoaded(CLOUD_INVESTMENTS,investments,invKey,db.investments,function(x){return x});
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
   return true;
  }catch(e){console.warn('cloud load',e);return false}
@@ -646,12 +700,15 @@ function proofButton(r,inline){
  if(!r)return inline?'-':'';
  const pre=inline?'':'<br>';
  // Photo jamais transmise à l’admin pour les dépôts : uniquement validation / refus
- if(r.proof&&String(r.proof).indexOf('data:image')===0)return pre+'<button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="viewProof('+Number(r.id)+')">📷 Voir la photo</button>';
+ if((r.proof&&String(r.proof).indexOf('data:image')===0)||(r.hasProof&&/^Dépôt/.test(String(r.type||''))))return pre+'<button type="button" class="smallbtn" style="margin-top:4px;background:#168ff0" onclick="viewProof('+Number(r.id)+')">📷 Voir la photo</button>';
  return inline?'-':'';
 }
-function viewProof(id){
+async function viewProof(id){
  const r=(db.requests||[]).find(x=>Number(x.id)===Number(id));
- if(!r||!r.proof||String(r.proof).indexOf('data:image')!==0){toast('Photo introuvable.');return}
+ if(!r){toast('Photo introuvable.');return}
+ let src=(r.proof&&String(r.proof).indexOf('data:image')===0)?r.proof:(_proofCache[id]||'');
+ if(!src){toast('Chargement de la photo…');src=await cloudFetchProof(id)}
+ if(!src){toast('Photo pas encore reçue : le client doit ouvrir l’application pour l’envoyer.');return}
  const isFinal=['Validée','Refusée'].includes(String(r.status||''));
  const isBonus=String(r.type||'').indexOf('Bonus')===0;
  const canReview=!isFinal&&!isBonus&&(/^(Dépôt|Retrait|Souscription)/.test(String(r.type||'')));
@@ -660,7 +717,7 @@ function viewProof(id){
     '<button type="button" onclick="setRequestStatus('+Number(r.id)+',\'Validée\');closeModal()" style="display:block;width:100%;padding:13px 8px;border-radius:10px;background:#168b50;color:#fff;font-weight:900;box-shadow:0 4px 14px #168b5044">✓ Accepter</button>'+
     '<button type="button" onclick="setRequestStatus('+Number(r.id)+',\'Refusée\');closeModal()" style="display:block;width:100%;padding:13px 8px;border-radius:10px;background:#d92f42;color:#fff;font-weight:900;box-shadow:0 4px 14px #d92f4244">✕ Refuser</button></div>'
   : (isFinal?'<p class="muted" style="margin-top:12px;font-size:12px">Cette demande a déjà été '+(r.status==='Validée'?'acceptée':'refusée')+'.</p>':'');
- modal('Photo de la demande', '<p style="margin:0 0 8px;font-size:13px">'+esc(r.type)+' · '+esc(r.userName||'')+' '+esc(r.phone)+'<br><b>'+money(r.amount)+'</b> · '+esc(new Date(r.created).toLocaleString('fr-FR'))+'<br><span style="color:#ffd477">Statut : '+esc(r.status||'En attente')+'</span></p><img src="'+r.proof+'" alt="Photo de la demande" style="display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px;background:#000;border:1px solid #343746">'+actions);
+ modal('Photo de la demande', '<p style="margin:0 0 8px;font-size:13px">'+esc(r.type)+' · '+esc(r.userName||'')+' '+esc(r.phone)+'<br><b>'+money(r.amount)+'</b> · '+esc(new Date(r.created).toLocaleString('fr-FR'))+'<br><span style="color:#ffd477">Statut : '+esc(r.status||'En attente')+'</span></p><img src="'+src+'" alt="Photo de la demande" style="display:block;width:100%;max-height:55vh;object-fit:contain;border-radius:10px;background:#000;border:1px solid #343746">'+actions);
 }
 function compressImageFile(file,cb){
  const reader=new FileReader();
@@ -711,20 +768,17 @@ var cloudRefreshTimer=null;
 function startCloudRefresh(){
  if(cloudRefreshTimer)clearInterval(cloudRefreshTimer);
  cloudRefreshTimer=setInterval(async function(){
+  if(document.hidden)return;
   if(!current&&!admin)return;
   // D'abord renvoyer les demandes non encore arrivées au cloud (cloudOk===false)
   try{
-   const pendingCloud=(db.requests||[]).filter(function(r){return r.cloudOk===false});
+   const pendingCloud=(db.requests||[]).filter(function(r){return r.cloudOk===false||r.proofPending});
    for(var i=0;i<pendingCloud.length;i++){
     await cloudUpsertRequest(pendingCloud[i]);
    }
   }catch(e){}
   const ok=await loadCloudDB();
   if(!ok)return;
-  try{
-   const mine=function(r){return admin||(current&&((current.uid&&r.uid===current.uid)||(current.email&&r.email===current.email)||(current.phone&&r.phone===current.phone)))};
-   (db.requests||[]).filter(mine).slice(-40).forEach(function(r){cloudUpsertRequest(r)});
-  }catch(e){}
   if(current){
    const refreshed=db.users.find(x=>(current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed){
@@ -745,7 +799,7 @@ function startCloudRefresh(){
    if(document.getElementById('referral')&&document.getElementById('referral').classList.contains('active'))renderReferralNow();
   }
   if(admin)renderAdmin();
- },8000);
+ },(admin?30000:60000));
 }
 
 function enterApp(){
@@ -1022,7 +1076,8 @@ async function submitDepositProof(){
   userName:current.name,
   created:new Date().toISOString(),
   cloudOk:false,
-  hasProof:!!localProof
+  hasProof:!!localProof,
+  proofPending:!!localProof
  };
  // Garder la photo seulement dans le stockage local du navigateur client
  if(localProof)req.proof=localProof;
