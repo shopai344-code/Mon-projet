@@ -374,7 +374,8 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <span id="adminUsers" class="hidden">0</span>
 <span id="adminNotInvestedCount" class="hidden">0</span>
 <span id="adminDeposits" class="hidden">0</span>
-<div class="panel"><h3>Configuration Wave</h3>
+<div class="panel"><h3>Personnes en ligne</h3><p class="muted" style="font-size:11px;margin:0 0 10px">Nombre de comptes actifs durant les 3 dernières minutes. Aucun nom ni contact affiché.</p><div id="adminPresenceTable" class="tablewrap" style="margin-top:10px"><p class="muted">Calcul du nombre de personnes en ligne…</p></div><button class="smallbtn" type="button" onclick="refreshPresence()">↻ Actualiser le nombre</button></div>
+ <div class="panel"><h3>Configuration Wave</h3>
 <div class="field"><label>Lien Wave Business</label><input id="waveLink" value="https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/"></div>
 <button class="wide" onclick="saveWave()">Enregistrer le lien</button>
 </div>
@@ -406,6 +407,8 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <script>
 const SHORT=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],LONG=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],KEY='ti_demo_v2',WAVE='https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/';
 const REF_BASE='https://shopai344-code.github.io/Mon-projet/';
+const CLOUD_PRESENCE='ti_presence';
+let _presenceTimer=null;
 const REF_RATES=[0.10,0.05,0.03,0.01]; // Niveaux 1 à 4 : 10 %, 5 %, 3 %, 1 % (en plus des récompenses Lv1-Lv100)
 const CLEANUP_KEY='ti_demo_fake_data_cleanup_v1';
 let db=loadDB(),current=null,admin=false,chosenAmount=5000,duration=30;
@@ -611,6 +614,40 @@ async function cloudFetchProof(id){
  }catch(e){console.warn('proof fetch',e)}
  return '';
 }
+async function sendPresence(){
+ if(!current||!current.uid)return false;
+ try{
+  const fs=await fsReady();if(!fs)return false;
+  const now=new Date().toISOString();
+  await fs.collection(CLOUD_PRESENCE).doc(fsDocId(current.uid)).set({
+   uid:current.uid,email:current.email||'',name:current.name||'',phone:current.phone||'',
+   country:current.country||'',lastSeen:firebase.firestore.FieldValue.serverTimestamp(),
+   lastSeenISO:now,updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  },{merge:true});
+  return true;
+ }catch(e){console.warn('presence',e);return false}
+}
+function startPresence(){
+ if(_presenceTimer)clearInterval(_presenceTimer);
+ sendPresence();
+ _presenceTimer=setInterval(function(){if(current&&!document.hidden)sendPresence()},45000);
+ document.addEventListener('visibilitychange',function(){if(!document.hidden&&current)sendPresence()});
+}
+async function refreshPresence(){
+ const box=document.getElementById('adminPresenceTable');
+ if(box)box.innerHTML='<p class="muted">Comptage en cours…</p>';
+ try{
+  const fs=await fsReady();if(!fs)throw new Error('Firestore indisponible');
+  const snap=await fs.collection(CLOUD_PRESENCE).get(),now=Date.now();let count=0;
+  snap.forEach(function(doc){
+   const x=doc.data()||{}, ts=x.lastSeenISO?new Date(x.lastSeenISO).getTime():(x.lastSeen&&x.lastSeen.toDate?x.lastSeen.toDate().getTime():0);
+   if(ts&&now-ts<3*60*1000)count++;
+  });
+  if(box)box.innerHTML='<div style="display:flex;align-items:center;gap:12px;padding:14px 4px"><span style="font-size:32px;line-height:1">●</span><div><div style="font-size:30px;font-weight:900">'+count+'</div><div class="muted">'+(count===1?'personne en ligne':'personnes en ligne')+'</div></div></div><p class="muted" style="font-size:10px">Mis à jour à '+new Date().toLocaleTimeString('fr-FR')+'</p>';
+ }catch(e){if(box)box.innerHTML='<p class="muted">Nombre indisponible. Vérifiez la connexion et les règles Firestore de la collection '+CLOUD_PRESENCE+'.</p>';console.warn(e)}
+}
+if(!window._presenceCountTimer){window._presenceCountTimer=setInterval(function(){if(typeof admin!=='undefined'&&admin)refreshPresence()},45000)}
+
 function reqMeta(r){
  const meta={
   id:r.id,
@@ -651,7 +688,7 @@ async function cloudUpsertRequest(r){
    },{stripProof:true});
   }catch(e){}
  }
- if(ok&&r.proofPending&&r.proof)cloudUploadProof(r);
+ if(ok&&r.proofPending&&r.proof){const proofOk=await cloudUploadProof(r);if(!proofOk)return false;}
  if(ok&&r.cloudOk===false){
   r.cloudOk=true;
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
@@ -725,7 +762,7 @@ async function loadCloudDB(full){
 async function adminRefresh(){
  toast('Actualisation…');
  const ok=await loadCloudDB(true);
- renderAdmin();
+ renderAdmin();refreshPresence();
  toast(ok?('Données à jour : '+(db.users||[]).length+' client(s), '+(db.requests||[]).length+' demande(s).'):'Sync impossible. Vérifiez Internet.');
 }
 
@@ -859,7 +896,7 @@ function enterApp(){
    const refreshed=db.users.find(x=> (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed)current=refreshed;
   }
-  renderAccount();renderHome();go('home');startCloudRefresh();showWelcomeMessage();setTimeout(resumePendingDeposit,800);
+  renderAccount();renderHome();go('home');startCloudRefresh();startPresence();showWelcomeMessage();setTimeout(resumePendingDeposit,800);
  }).catch(function(){renderAccount();renderHome();go('home');showWelcomeMessage()});
 }
 function showWelcome(){enterApp()}
@@ -973,9 +1010,9 @@ async function login(){
   var appEl=document.querySelector('.app');
   if(appEl)appEl.classList.remove('gated');
   go('admin');
-  renderAdmin();
+  renderAdmin();refreshPresence();
   toast('Session administrateur ouverte.');
-  loadCloudDB(true).then(function(){renderAdmin();}).catch(function(){renderAdmin();});
+  loadCloudDB(true).then(function(){renderAdmin();refreshPresence();}).catch(function(){renderAdmin();refreshPresence();});
   return;
  }
  if(!validEmail(email)){toast('Adresse e-mail invalide.');return}
@@ -1111,7 +1148,7 @@ function previewDepositProof(input){
 async function submitDepositProof(){
  if(!current||!pendingDeposit||!pendingDeposit.amount){toast('Session ou demande de dépôt introuvable.');return}
  const d=pendingDeposit,type=pendingDepositMode==='JEKO'?'Dépôt Paiement':pendingDepositMode==='MTN'?'Dépôt MTN':(isCI()?'Dépôt Wave':'Dépôt Wave international');
- // Photo uniquement en local chez le client — JAMAIS envoyée au cloud / admin
+ // La photo est envoyée au stockage cloud pour que l’administrateur puisse la consulter.
  const localProof=pendingProofData||'';
  const req={
   id:Date.now(),
@@ -1128,7 +1165,7 @@ async function submitDepositProof(){
   hasProof:!!localProof,
   proofPending:!!localProof
  };
- // Garder la photo seulement dans le stockage local du navigateur client
+ // La photo est transmise à l’administrateur via le stockage cloud.
  if(localProof)req.proof=localProof;
  try{
   db.requests.push(req);
@@ -1154,8 +1191,8 @@ async function submitDepositProof(){
   if(!ok)await new Promise(function(r){setTimeout(r,900)});
  }
  toast(ok
-  ?'Demande envoyée. L’administrateur va valider ou refuser votre dépôt.'
-  :'Connexion lente : demande enregistrée. Elle sera renvoyée automatiquement. Ne la recréez pas.');
+  ?(localProof?'Demande et photo envoyées à l’administrateur.':'Demande envoyée. L’administrateur va valider ou refuser votre dépôt.')
+  :'Connexion lente : demande et photo en attente de synchronisation. Ne la recréez pas.');
  renderHistory();
 }
 function calcFee(){const a=Number(withdrawAmount.value)||0;withdrawFee.textContent=money(Math.round(a*.10));withdrawBalance.textContent=money(current?current.withdraw:0)}
