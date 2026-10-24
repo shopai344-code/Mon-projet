@@ -371,10 +371,10 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="stat"><small>Clients investis</small><strong id="adminInvestedCount">0</strong></div>
 <div class="stat"><small>Retraits en attente</small><strong id="adminWithdrawals">0</strong></div>
 </div>
+<div class="panel"><h3>Membres inscrits</h3><div style="display:flex;align-items:baseline;gap:10px;padding:6px 0"><div id="adminMembersCount" style="font-size:38px;font-weight:900">0</div><div id="adminMembersLabel" class="muted">membre</div></div></div>
 <span id="adminUsers" class="hidden">0</span>
 <span id="adminNotInvestedCount" class="hidden">0</span>
 <span id="adminDeposits" class="hidden">0</span>
-<div class="panel"><h3>Personnes en ligne</h3><p class="muted" style="font-size:11px;margin:0 0 10px">Nombre de comptes actifs durant les 3 dernières minutes. Aucun nom ni contact affiché.</p><div id="adminPresenceTable" class="tablewrap" style="margin-top:10px"><p class="muted">Calcul du nombre de personnes en ligne…</p></div><button class="smallbtn" type="button" onclick="refreshPresence()">↻ Actualiser le nombre</button></div>
  <div class="panel"><h3>Configuration Wave</h3>
 <div class="field"><label>Lien Wave Business</label><input id="waveLink" value="https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/"></div>
 <button class="wide" onclick="saveWave()">Enregistrer le lien</button>
@@ -407,8 +407,6 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <script>
 const SHORT=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],LONG=[2500,3000,5000,10000,20000,25000,30000,40000,50000,75000],KEY='ti_demo_v2',WAVE='https://pay.wave.com/m/M_ci_M32Pfr2sR-WA/c/ci/';
 const REF_BASE='https://shopai344-code.github.io/Mon-projet/';
-const CLOUD_PRESENCE='ti_presence';
-let _presenceTimer=null;
 const REF_RATES=[0.10,0.05,0.03,0.01]; // Niveaux 1 à 4 : 10 %, 5 %, 3 %, 1 % (en plus des récompenses Lv1-Lv100)
 const CLEANUP_KEY='ti_demo_fake_data_cleanup_v1';
 let db=loadDB(),current=null,admin=false,chosenAmount=5000,duration=30;
@@ -614,39 +612,6 @@ async function cloudFetchProof(id){
  }catch(e){console.warn('proof fetch',e)}
  return '';
 }
-async function sendPresence(){
- if(!current||!current.uid)return false;
- try{
-  const fs=await fsReady();if(!fs)return false;
-  const now=new Date().toISOString();
-  await fs.collection(CLOUD_PRESENCE).doc(fsDocId(current.uid)).set({
-   uid:current.uid,email:current.email||'',name:current.name||'',phone:current.phone||'',
-   country:current.country||'',lastSeen:firebase.firestore.FieldValue.serverTimestamp(),
-   lastSeenISO:now,updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-  },{merge:true});
-  return true;
- }catch(e){console.warn('presence',e);return false}
-}
-function startPresence(){
- if(_presenceTimer)clearInterval(_presenceTimer);
- sendPresence();
- _presenceTimer=setInterval(function(){if(current&&!document.hidden)sendPresence()},45000);
- document.addEventListener('visibilitychange',function(){if(!document.hidden&&current)sendPresence()});
-}
-async function refreshPresence(){
- const box=document.getElementById('adminPresenceTable');
- if(box)box.innerHTML='<p class="muted">Comptage en cours…</p>';
- try{
-  const fs=await fsReady();if(!fs)throw new Error('Firestore indisponible');
-  const snap=await fs.collection(CLOUD_PRESENCE).get(),now=Date.now();let count=0;
-  snap.forEach(function(doc){
-   const x=doc.data()||{}, ts=x.lastSeenISO?new Date(x.lastSeenISO).getTime():(x.lastSeen&&x.lastSeen.toDate?x.lastSeen.toDate().getTime():0);
-   if(ts&&now-ts<3*60*1000)count++;
-  });
-  if(box)box.innerHTML='<div style="display:flex;align-items:center;gap:12px;padding:14px 4px"><span style="font-size:32px;line-height:1">●</span><div><div style="font-size:30px;font-weight:900">'+count+'</div><div class="muted">'+(count===1?'personne en ligne':'personnes en ligne')+'</div></div></div><p class="muted" style="font-size:10px">Mis à jour à '+new Date().toLocaleTimeString('fr-FR')+'</p>';
- }catch(e){if(box)box.innerHTML='<p class="muted">Nombre indisponible. Vérifiez la connexion et les règles Firestore de la collection '+CLOUD_PRESENCE+'.</p>';console.warn(e)}
-}
-if(!window._presenceCountTimer){window._presenceCountTimer=setInterval(function(){if(typeof admin!=='undefined'&&admin)refreshPresence()},45000)}
 
 function reqMeta(r){
  const meta={
@@ -762,7 +727,7 @@ async function loadCloudDB(full){
 async function adminRefresh(){
  toast('Actualisation…');
  const ok=await loadCloudDB(true);
- renderAdmin();refreshPresence();
+ renderAdmin();
  toast(ok?('Données à jour : '+(db.users||[]).length+' client(s), '+(db.requests||[]).length+' demande(s).'):'Sync impossible. Vérifiez Internet.');
 }
 
@@ -896,7 +861,7 @@ function enterApp(){
    const refreshed=db.users.find(x=> (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone));
    if(refreshed)current=refreshed;
   }
-  renderAccount();renderHome();go('home');startCloudRefresh();startPresence();showWelcomeMessage();setTimeout(resumePendingDeposit,800);
+  renderAccount();renderHome();go('home');startCloudRefresh();showWelcomeMessage();setTimeout(resumePendingDeposit,800);
  }).catch(function(){renderAccount();renderHome();go('home');showWelcomeMessage()});
 }
 function showWelcome(){enterApp()}
@@ -1010,9 +975,9 @@ async function login(){
   var appEl=document.querySelector('.app');
   if(appEl)appEl.classList.remove('gated');
   go('admin');
-  renderAdmin();refreshPresence();
+  renderAdmin();
   toast('Session administrateur ouverte.');
-  loadCloudDB(true).then(function(){renderAdmin();refreshPresence();}).catch(function(){renderAdmin();refreshPresence();});
+  loadCloudDB(true).then(function(){renderAdmin();}).catch(function(){renderAdmin();});
   return;
  }
  if(!validEmail(email)){toast('Adresse e-mail invalide.');return}
@@ -1275,7 +1240,7 @@ function renderAdmin(){
  const investedUsers=users.filter(function(u){return investedPhones.has(u.phone)});
  const notInvestedUsers=users.filter(function(u){return !investedPhones.has(u.phone)});
  const pendingWithdrawals=reqs.filter(function(r){return r.type&&r.type.indexOf('Retrait ')===0&&!['Validée','Refusée'].includes(r.status)});
- adminUsers.textContent=users.length;
+ adminUsers.textContent=users.length;var elMem=document.getElementById('adminMembersCount');if(elMem)elMem.textContent=users.length;var elMemL=document.getElementById('adminMembersLabel');if(elMemL)elMemL.textContent=users.length>1?'membres':'membre';
  var elInv=document.getElementById('adminInvestedCount');if(elInv)elInv.textContent=investedUsers.length;
  var elNot=document.getElementById('adminNotInvestedCount');if(elNot)elNot.textContent=notInvestedUsers.length;
  adminWithdrawals.textContent=pendingWithdrawals.length;
