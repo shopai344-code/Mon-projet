@@ -395,7 +395,7 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <p class="muted" style="font-size:11px;margin:0 0 10px">Liste de tous les comptes qui ont au moins un filleul direct, avec le nombre de personnes parrainées (direct + équipe).</p>
 <div id="adminSponsorsTable" class="tablewrap"></div>
 </div>
-<div class="panel hidden"><h3>Tous les clients (soldes, statut & actions)</h3>
+<div class="panel"><h3>Tous les clients (soldes, statut & actions)</h3>
 <p class="muted" style="font-size:11px;margin:0 0 10px">Désactiver = connexion bloquée temporairement. Bannir = compte définitivement interdit. Réactiver = rétablir l’accès.</p>
 <div id="adminUsersTable" class="tablewrap"></div>
 </div>
@@ -694,7 +694,7 @@ async function loadCloudDB(full){
    ]);
    db.users=mergeByKey(db.users||[],clean(users),userKey);
    db.requests=mergeByKey(db.requests||[],clean(requests),reqKey);
-   db.investments=mergeByKey(db.investments||[],clean(investments),invKey);
+   db.investments=mergeByKey(db.investments||[],clean(investments),invKey);purgeDeleted();
    _markLoaded(CLOUD_USERS,users,userKey,db.users,userBody);
    _markLoaded(CLOUD_REQUESTS,requests,reqKey,db.requests,reqMeta);
    _markLoaded(CLOUD_INVESTMENTS,investments,invKey,db.investments,function(x){return x});
@@ -719,7 +719,7 @@ async function loadCloudDB(full){
   }
   db.users=mergeByKey(db.users||[],clean(myUsers),userKey);
   db.requests=mergeByKey(db.requests||[],clean(myReqs),reqKey);
-  db.investments=mergeByKey(db.investments||[],clean(myInvs),invKey);
+  db.investments=mergeByKey(db.investments||[],clean(myInvs),invKey);purgeDeleted();
   try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}
   return true;
  }catch(e){console.warn('cloud load',e);return false}
@@ -1173,12 +1173,11 @@ if(alreadyToday){toast('Un seul retrait par jour. Revenez demain.');return}
 const u=db.users.find(x=>x.phone===current.phone||(current.uid&&x.uid===current.uid)||(current.email&&x.email&&x.email.toLowerCase()===current.email.toLowerCase()));if(!u){toast('Compte introuvable.');return}u.withdraw=Math.max(0,(Number(u.withdraw)||0)-a);u.balanceUpdatedAt=new Date().toISOString();current=u;db.requests.push({id:Date.now(),type:'Retrait '+method,method:method,phone:current.phone,beneficiary:phone,amount:a,fee:Math.round(a*.10),status:'À examiner',created:new Date().toISOString(),email:current.email,uid:current.uid,userName:current.name,balanceReserved:true,cloudOk:false});saveDB();renderHistory();renderAdmin();renderHome();renderAccount();if(typeof calcFee==='function')calcFee();toast('Demande de retrait '+method+' envoyée (1 max/jour). Solde réservé.');if(typeof cloudUpsertRequest==='function'){const last=db.requests[db.requests.length-1];cloudUpsertRequest(last).catch(function(){})}}
 function addRequest(type,amount,daily,days,longTerm){
  if(!current){toast('Connectez-vous avant de continuer.');return}
- const hasDeposit=db.requests.some(r=>r.phone===current.phone&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)&&r.status==='Validée');
  amount=Number(amount)||0;
  daily=Number(daily)||0;
  days=Number(days)||0;
- if(!hasDeposit||(Number(current.deposit)||0)<amount){
-  toast('Investissement impossible : dépôt validé et solde suffisant obligatoires.');
+ if((Number(current.deposit)||0)<amount){
+  toast('Solde insuffisant : '+money(Number(current.deposit)||0)+' disponible, '+money(amount)+' nécessaire.');
   return;
  }
  const reqId=Date.now();
@@ -1270,6 +1269,7 @@ function renderAdmin(){
   if(!u.banned){
    btns+='<button class="smallbtn" style="background:#d92f42;margin:2px" data-uk="'+key+'" data-st="banned" onclick="setUserAccountStatus(this.getAttribute(\'data-uk\'),this.getAttribute(\'data-st\'))">Bannir</button>';
   }
+  btns+='<button class="smallbtn" style="background:#6a3fd0;margin:2px" data-uk="'+key+'" onclick="adminOpenInvestments(this.getAttribute(\'data-uk\'))">Investissements</button>';
   return btns;
  }
  function userRowFull(u){
@@ -1318,6 +1318,37 @@ function renderAdmin(){
   }
  }
 }
+
+// ===== Envoi fiable de la validation vers Firebase + alerte si échec =====
+async function adminPushValidation(r){
+ try{
+  const u=findUserForRequest(r);
+  window._lastFsError='';
+  const ok1=await cloudUpsertRequest(r);
+  const ok2=u?await cloudUpsertUser(u):true;
+  if(!ok1||!ok2){
+   const code=window._lastFsError||'inconnue';
+   const quota=/resource-exhausted|quota/i.test(code);
+   toast(quota?'⚠️ Validé ici mais Firebase a REFUSÉ l’envoi (quota dépassé). Le client ne verra rien tant que le quota n’est pas rétabli.':'⚠️ Validé ici mais NON envoyé au client (erreur Firebase : '+code+'). Réessayez avec une bonne connexion.');
+  }else{
+   toast('✅ Envoyé au client.');
+  }
+ }catch(e){toast('⚠️ Envoi vers le client impossible : '+(e&&e.message||e))}
+}
+// Client : vérifie plus souvent quand une demande est en attente (au lieu de 5 min)
+async function clientWatchPending(){
+ try{
+  if(document.hidden||!current||admin)return;
+  const pend=(db.requests||[]).some(function(r){return r.phone===current.phone&&r.status!=='Validée'&&r.status!=='Refusée'&&!r.deleted});
+  if(!pend)return;
+  const ok=await loadCloudDB(false);
+  if(!ok)return;
+  const me=db.users.find(function(x){return (current.uid&&x.uid===current.uid)||(current.email&&x.email===current.email)||(current.phone&&x.phone===current.phone)});
+  if(me){current=me;renderAccount();renderHome();renderHistory()}
+ }catch(e){}
+}
+setInterval(clientWatchPending,45000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)clientWatchPending()});
 function setRequestStatus(id,status){const r=db.requests.find(x=>Number(x.id)===Number(id));if(!r){toast('Demande introuvable.');return}const was=r.status;r.status=status;r.reviewedAt=new Date().toISOString();if(status==='Validée'&&was!=='Validée'&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)){
  const u=findUserForRequest(r);
  if(u){
@@ -1356,7 +1387,7 @@ if(status==='Refusée'&&was!=='Refusée'&&r.type&&r.type.indexOf('Retrait ')===0
   }
  }
 }
-saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.')}
+saveDB();renderAdmin();renderHistory();renderHome();if(document.getElementById('investments')?.classList.contains('active'))renderInvestments();toast(status==='Refusée'?'Demande refusée.':'Demande validée.');adminPushValidation(r)}
 
 function isUserBlocked(u){
  if(!u)return false;
@@ -1368,6 +1399,90 @@ function findUserByIdentityKey(key){
  return (db.users||[]).find(function(x){
   return userIdentityKey(x)===key || String(x.phone||'')===key || String(x.email||'').toLowerCase()===key || String(x.uid||'')===key;
  })||null;
+}
+
+// ===== Suppression d'investissements par l'admin =====
+function purgeDeleted(){
+ try{
+  db.investments=(db.investments||[]).filter(function(i){return !i.deleted});
+  db.requests=(db.requests||[]).filter(function(r){return !r.deleted});
+ }catch(e){}
+}
+function invGainsInfo(inv){
+ const daily=Number(inv.daily)||0,amount=Number(inv.amount)||0,elapsed=Math.min(daysElapsed(inv.startDate),Number(inv.days)||0);
+ const isLong=!!inv.longTerm;
+ const produced=isLong?(Number(inv.claimedTotal)||0):(inv.credited?(Number(inv.payout)||0)-amount:daily*elapsed);
+ let fromWithdraw=0;
+ if(isLong){fromWithdraw=(Number(inv.claimedTotal)||0)+(inv.capitalReturned?amount:0)}
+ else if(inv.credited){fromWithdraw=Number(inv.payout)||0}
+ return {produced:Math.max(0,produced),fromWithdraw:fromWithdraw};
+}
+async function fsMarkDeleted(col,key,extra){
+ try{
+  const fs=await fsReady();if(!fs)return false;
+  const body=Object.assign({deleted:true,deletedAt:new Date().toISOString()},extra||{});
+  try{body.updatedAt=firebase.firestore.FieldValue.serverTimestamp()}catch(e){body.updatedAt=new Date().toISOString()}
+  await fs.collection(col).doc(fsDocId(key)).set(body,{merge:true});
+  return true;
+ }catch(e){console.warn('firestore delete',col,e);return false}
+}
+function adminOpenInvestments(key){
+ if(!admin){toast('Accès admin requis.');return}
+ const u=findUserByIdentityKey(key);
+ if(!u){toast('Client introuvable.');return}
+ const invs=(db.investments||[]).filter(function(i){return !i.deleted&&i.phone===u.phone});
+ const old=document.getElementById('invDelModal');if(old)old.remove();
+ const box=document.createElement('div');box.id='invDelModal';
+ box.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:99999;display:flex;align-items:center;justify-content:center;padding:14px';
+ const rows=invs.length?invs.map(function(inv){
+  const g=invGainsInfo(inv);
+  return '<label style="display:block;padding:10px;margin:6px 0;border:1px solid #2a3350;border-radius:12px;background:#0f1424"><input type="checkbox" class="invdel-ck" value="'+esc(invKey(inv))+'" style="margin-right:8px">'
+   +'<b>'+esc(inv.type||'Investissement')+'</b><br><small>Capital : '+money(inv.amount)+' · Gains produits : '+money(g.produced)+' · Début : '+esc(String(inv.startDate||'').slice(0,10))+'</small></label>';
+ }).join(''):'<p class="muted">Ce client n’a aucun investissement.</p>';
+ box.innerHTML='<div style="background:#12182b;color:#fff;border-radius:16px;max-width:520px;width:100%;max-height:90vh;overflow:auto;padding:16px">'
+  +'<h3 style="margin:0 0 4px">Investissements de '+esc(u.name||u.phone)+'</h3>'
+  +'<p class="muted" style="margin:0 0 8px">Solde dépôt : '+money(u.deposit||0)+' · Solde retrait : '+money(u.withdraw||0)+'</p>'
+  +rows
+  +'<p class="muted" style="font-size:12px">Supprimer un investissement efface aussi tous les gains qu’il a produits.</p>'
+  +(invs.length?'<button class="smallbtn" style="background:#168b50;margin:3px;padding:10px" onclick="adminDeleteInvestments(\''+esc(key)+'\',\'refund\')">Supprimer et rendre le capital au solde</button>'
+  +'<button class="smallbtn" style="background:#d92f42;margin:3px;padding:10px" onclick="adminDeleteInvestments(\''+esc(key)+'\',\'wipe\')">Supprimer et effacer tout le solde</button>':'')
+  +'<button class="smallbtn" style="background:#444;margin:3px;padding:10px" onclick="document.getElementById(\'invDelModal\').remove()">Fermer</button></div>';
+ document.body.appendChild(box);
+}
+async function adminDeleteInvestments(key,mode){
+ if(!admin){toast('Accès admin requis.');return}
+ const u=findUserByIdentityKey(key);
+ if(!u){toast('Client introuvable.');return}
+ const ids=Array.prototype.map.call(document.querySelectorAll('#invDelModal .invdel-ck:checked'),function(c){return c.value});
+ if(!ids.length){toast('Cochez au moins un investissement.');return}
+ const sel=(db.investments||[]).filter(function(i){return ids.indexOf(invKey(i))>=0});
+ const capital=sel.reduce(function(a,i){return a+(Number(i.amount)||0)},0);
+ const txt=mode==='wipe'
+  ?'Supprimer '+sel.length+' investissement(s) ET mettre à 0 tout le solde (dépôt + retrait) de « '+(u.name||u.phone)+' » ?'
+  :'Supprimer '+sel.length+' investissement(s) avec tous leurs gains, et rendre '+money(capital)+' au solde dépôt de « '+(u.name||u.phone)+' » ?';
+ if(!confirm(txt+'\nCette action est définitive.'))return;
+ let removeW=0;
+ sel.forEach(function(inv){removeW+=invGainsInfo(inv).fromWithdraw});
+ if(mode==='wipe'){u.deposit=0;u.withdraw=0}
+ else{u.deposit=(Number(u.deposit)||0)+capital;u.withdraw=Math.max(0,(Number(u.withdraw)||0)-removeW)}
+ u.balanceUpdatedAt=new Date().toISOString();
+ if(current&&(current.phone===u.phone||current.email===u.email))current=u;
+ // marquer supprimés (investissement + demande de souscription liée) pour que tous les appareils les retirent
+ let ok=true;
+ for(const inv of sel){
+  inv.deleted=true;inv.deletedAt=new Date().toISOString();inv.status='deleted';
+  ok=(await fsMarkDeleted(CLOUD_INVESTMENTS,invKey(inv),{status:'deleted'}))&&ok;
+  if(inv.requestId){
+   const rq=(db.requests||[]).find(function(r){return r.id===inv.requestId});
+   if(rq){rq.deleted=true;ok=(await fsMarkDeleted(CLOUD_REQUESTS,reqKey(rq)))&&ok}
+  }
+ }
+ try{await cloudUpsertUser(u)}catch(e){ok=false}
+ purgeDeleted();
+ saveDB();
+ const m=document.getElementById('invDelModal');if(m)m.remove();
+ renderAdmin();
+ toast(ok?'Investissement(s) supprimé(s).':'Supprimé ici, mais Firebase n’a pas répondu : réessayez avec une bonne connexion.');
 }
 function setUserAccountStatus(key,status){
  if(!admin){toast('Accès admin requis.');return}
