@@ -868,9 +868,11 @@ function enterApp(){
 function showWelcome(){enterApp()}
 function showWelcomeMessage(){modalRoot.innerHTML=`<div class="modalback"><div class="modal welcome-modal" style="padding:0;overflow:hidden;background:#fff;color:#292637;border-radius:24px;border:0"><div style="padding:34px 20px;background:linear-gradient(135deg,#ff3347,#b90d25);text-align:center;color:white"><div style="font-size:46px;font-weight:1000;letter-spacing:-3px">TI</div><div style="font-weight:900;font-size:18px">TECHNOLOGIE INVESTI</div></div><div style="padding:24px 22px 22px;text-align:center"><h2 style="font-size:23px;margin:0 0 12px;color:#292637">🎉 Bienvenue${current&&current.name?' '+esc(current.name):''} !</h2><p style="font-size:15px;line-height:1.6;color:#777482;margin:0 0 20px">Votre ${current&&current.created?'compte':'session'} est prêt. Découvrez votre espace, consultez les conditions des plans et suivez les annonces officielles.</p><div style="text-align:left;font-size:14px;line-height:1.7;color:#393746;margin-bottom:20px"><p>🚀 <b>1.</b> Votre accès à l’espace client est ouvert.</p><p>💰 <b>2.</b> Consultez les dépôts et les conditions des plans avant toute demande.</p><p>🔥 <b>3.</b> Rejoignez notre groupe Telegram pour recevoir les actualités et annonces.</p></div><a href="https://t.me/+CzO9jS2-CM1lMzBk" target="_blank" rel="noopener noreferrer" style="display:block;padding:16px 12px;background:#fff0f1;color:#b90d25;border-radius:14px;font-weight:900;margin-bottom:12px">✈️ Rejoindre le groupe Telegram</a><button class="wide" style="margin:0;padding:16px;background:linear-gradient(90deg,#ff3347,#c20f2b)" onclick="closeModal()">J’AI COMPRIS</button><p style="font-size:10px;color:#888;margin:13px 0 0">Bienvenue sur votre espace client.</p></div></div></div>`}
 const PHONE_COUNTRIES={'Côte d’Ivoire':['225',[10]],'Burkina Faso':['226',[8]],'Sénégal':['221',[9]],'Mali':['223',[8]],'Bénin':['229',[10]]};
-function updatePhoneHint(){const c=PHONE_COUNTRIES[authRegCountry.value];authRegPhone.placeholder=c?('Ex. +'+c[0]+' ou numéro local'):'Ex. +233241234567 (indicatif du pays obligatoire)'}
+function updatePhoneHint(){const c=PHONE_COUNTRIES[authRegCountry.value];authRegPhone.placeholder=c?('Ex. +'+c[0]+' ou numéro local'):'Votre numéro de téléphone (tout pays accepté)'}
 function normalizeFirebasePhone(raw,country){
  let phone=String(raw||'').trim().replace(/[\s().-]/g,'');
+ // « Autre » : n'importe quel numéro, avec ou sans indicatif, on ne modifie rien
+ if(country==='Autre'){if(phone.startsWith('00'))phone='+'+phone.slice(2);return phone}
  if(phone.startsWith('00'))phone='+'+phone.slice(2);
  if(phone.startsWith('+'))return phone;
  const c=PHONE_COUNTRIES[country];
@@ -885,6 +887,9 @@ function normalizeFirebasePhone(raw,country){
  return '+'+dial+phone.replace(/^0+/,'');
 }
 function validateFirebasePhone(p){
+ // « Autre » : accepter n'importe quel numéro (6 à 15 chiffres, « + » facultatif)
+ const selAutre=(typeof authRegCountry!=='undefined'&&authRegCountry)?authRegCountry.value:'';
+ if(selAutre==='Autre')return /^\+?\d{6,15}$/.test(p)?'':'Numéro invalide : saisissez entre 6 et 15 chiffres.';
  if(!/^\+[1-9]\d{7,14}$/.test(p))return 'Numéro invalide. Vérifiez votre pays, ou saisissez le numéro avec l’indicatif international (ex. +22670123456).';
  const keys=Object.keys(PHONE_COUNTRIES).sort(function(a,b){return PHONE_COUNTRIES[b][0].length-PHONE_COUNTRIES[a][0].length});
  const sel=(typeof authRegCountry!=='undefined'&&authRegCountry)?authRegCountry.value:'';
@@ -1019,7 +1024,7 @@ let pendingDeposit=null,pendingProofData='',pendingDepositMode='';
 function waveLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Wave"><rect width="48" height="48" rx="12" fill="#1DC8FF"/><path d="M8 20c4-6 8-6 12 0s8 6 12 0 6-4 8-3M8 31c4-6 8-6 12 0s8 6 12 0 6-4 8-3" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>'}
 function orangeLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Orange Money"><rect width="48" height="48" rx="12" fill="#ff7900"/><text x="24" y="30" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="900" fill="#fff">OM</text></svg>'}
 function mtnLogo(n){n=n||48;return '<svg width="'+Math.round(n*1.25)+'" height="'+n+'" viewBox="0 0 60 48" aria-label="MTN"><ellipse cx="30" cy="24" rx="29" ry="22" fill="#FFCB05" stroke="#171717" stroke-width="2"/><text x="30" y="30" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="18" fill="#171717">MTN</text></svg>'}
-(function(){const w=document.getElementById('logoWave'),m=document.getElementById('logoMtn');if(w)w.innerHTML=waveLogo(46);if(m)m.innerHTML=mtnLogo(40)})();
+(function(){const w=document.getElementById('logoWave'),m=document.getElementById('logoMtn'),o=document.getElementById('logoOrange');if(w)w.innerHTML=waveLogo(46);if(m)m.innerHTML=mtnLogo(40);if(o)o.innerHTML=orangeLogo(46)})();
 function payLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Paiement"><rect width="48" height="48" rx="12" fill="#fff"/><rect x="9" y="14" width="30" height="20" rx="4" fill="#138a45"/><rect x="9" y="19" width="30" height="5" fill="#fff" opacity=".9"/><rect x="13" y="28" width="9" height="3" rx="1.5" fill="#fff"/></svg>'}
 function updateDepositOptions(){
  const ci=isCI();
@@ -1041,7 +1046,7 @@ function startDeposit(mode){
 function submitDeposit(){startDeposit('WAVE')}
 function confirmDepositPhone(){
  const phone=(document.getElementById('depositPhoneConfirm')?.value||'').trim().replace(/[\s()-]/g,'');
- if(phone.length<7){toast('Saisissez un numéro de téléphone valide.');return}
+ if(phone.length<6){toast('Saisissez un numéro de téléphone valide.');return}
  pendingDeposit={phone:phone};showDepositAmount();
 }
 function showDepositAmount(){
@@ -3856,5 +3861,129 @@ html.tb-scrolling #tiFx{opacity:.35}
 .tb-rw .a{color:#ffd477}
 .tb-rh{position:sticky;top:0;background:#101521!important;border-top:0;font-size:8.5px;color:#9eb4cc;text-transform:uppercase}.tb-rh span{font-weight:700}
 </style>
+
+<style id="ti-pay-motion">
+/* ===== Dépôt : Wave, MTN, Orange (+ Jeko) animés de la même façon, fluide (transform/opacity uniquement) ===== */
+@keyframes tiPayIn{from{opacity:0;transform:translate3d(0,22px,0) scale(.96)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}
+@keyframes tiPaySheen{0%,55%{transform:translate3d(-130%,0,0) skewX(-18deg)}100%{transform:translate3d(420%,0,0) skewX(-18deg)}}
+@keyframes tiPayFloat{0%,100%{transform:translate3d(0,0,0) rotate(0)}50%{transform:translate3d(0,-4px,0) rotate(-3deg)}}
+@keyframes tiPayBreathe{0%,100%{opacity:.25}50%{opacity:.9}}
+@keyframes tiSoftBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.018)}}
+#recharge #depositPaymentOptions>button{position:relative;overflow:hidden;isolation:isolate;will-change:transform,opacity;backface-visibility:hidden;
+ animation:tiPayIn .75s var(--ease,cubic-bezier(.16,1,.3,1)) var(--d,0s) backwards;
+ transition:transform .35s var(--ease,cubic-bezier(.16,1,.3,1)),filter .35s ease}
+#recharge #depositPaymentOptions>button:nth-of-type(1){--d:.04s}
+#recharge #depositPaymentOptions>button:nth-of-type(2){--d:.12s}
+#recharge #depositPaymentOptions>button:nth-of-type(3){--d:.20s}
+#recharge #depositPaymentOptions>button:nth-of-type(4){--d:.28s}
+#recharge #depositPaymentOptions>button:active{transform:scale(.975);filter:brightness(1.08)}
+/* reflet qui traverse le bouton */
+#recharge #depositPaymentOptions>button:after{content:"";position:absolute;top:-10%;bottom:-10%;left:0;width:30%;z-index:0;pointer-events:none;
+ background:linear-gradient(90deg,transparent,rgba(255,255,255,.42),transparent);
+ animation:tiPaySheen 3.4s cubic-bezier(.45,0,.25,1) infinite;will-change:transform}
+#recharge #depositPaymentOptions>button:nth-of-type(2):after{animation-delay:.5s}
+#recharge #depositPaymentOptions>button:nth-of-type(3):after{animation-delay:1s}
+#recharge #depositPaymentOptions>button:nth-of-type(4):after{animation-delay:1.5s}
+/* halo doux qui respire */
+#recharge #depositPaymentOptions>button:before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+ background:radial-gradient(circle at 14% 50%,rgba(255,255,255,.34),transparent 58%);
+ animation:tiPayBreathe 3s ease-in-out infinite}
+#recharge #depositPaymentOptions>button>span{position:relative;z-index:1}
+#recharge #depositPaymentOptions>button>span:first-child{display:inline-flex;will-change:transform;animation:tiPayFloat 3s ease-in-out infinite}
+#recharge #depositPaymentOptions>button:nth-of-type(3)>span:first-child{animation-delay:.3s}
+#recharge #depositPaymentOptions>button:nth-of-type(4)>span:first-child{animation-delay:.6s}
+/* Orange : halo chaud */
+#recharge #depositPaymentOptions>button[onclick*="ORANGE"]{box-shadow:0 8px 24px rgba(255,121,0,.28)}
+#recharge #depositPaymentOptions>button[onclick*="WAVE"]{box-shadow:0 8px 24px rgba(21,153,246,.25)}
+#recharge #depositPaymentOptions>button[onclick*="MTN"]{box-shadow:0 8px 24px rgba(255,204,0,.22)}
+/* boutons de validation : battement plus doux (l'ancien tremblait) */
+.modal .wide,#withdraw .wide{animation:tiSoftBeat 3.2s ease-in-out infinite;will-change:transform}
+
+/* ===== Retrait : choix du moyen en cartes animées ===== */
+@keyframes tiWdIn{from{opacity:0;transform:translate3d(0,16px,0) scale(.94)}to{opacity:1;transform:none}}
+@keyframes tiWdPick{0%{transform:scale(.8) rotate(-8deg)}55%{transform:scale(1.22) rotate(5deg)}100%{transform:scale(1) rotate(0)}}
+@keyframes tiWdCheck{0%{transform:scale(0) rotate(-90deg);opacity:0}70%{transform:scale(1.25) rotate(8deg);opacity:1}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes tiWdRing{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.18);opacity:0}}
+@keyframes tiWdPop{0%{transform:scale(1)}40%{transform:scale(1.14)}100%{transform:scale(1)}}
+@keyframes tiWdShine{0%,60%{transform:translate3d(-130%,0,0) skewX(-18deg)}100%{transform:translate3d(420%,0,0) skewX(-18deg)}}
+#withdraw .field.has-chips>select{display:none}
+.wd-methods{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:2px}
+.wd-m{position:relative;overflow:hidden;isolation:isolate;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+ min-height:92px;padding:12px 6px 10px;border-radius:14px;color:#dfe3ec;background:#131824;border:1.5px solid #2a3144;
+ animation:tiWdIn .6s var(--ease,cubic-bezier(.16,1,.3,1)) calc(var(--i,0)*.09s + .1s) backwards;
+ transition:transform .35s var(--ease,cubic-bezier(.16,1,.3,1)),border-color .3s ease,background .3s ease,box-shadow .35s ease;
+ will-change:transform;-webkit-tap-highlight-color:transparent}
+.wd-m:active{transform:scale(.95)}
+.wd-m .wd-logo{display:inline-flex;transition:transform .4s var(--spring,cubic-bezier(.34,1.45,.64,1))}
+.wd-m .wd-name{font-size:11.5px;font-weight:800;text-align:center;line-height:1.15}
+.wd-m .wd-ck{position:absolute;top:6px;right:6px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font:900 11px/1 system-ui;font-style:normal;color:#fff;opacity:0;transform:scale(0)}
+.wd-m:after{content:"";position:absolute;top:-10%;bottom:-10%;left:0;width:34%;z-index:-1;pointer-events:none;opacity:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent)}
+.wd-m.on{transform:translate3d(0,-2px,0)}
+.wd-m.on .wd-logo{animation:tiWdPick .55s var(--spring,cubic-bezier(.34,1.45,.64,1)) both}
+.wd-m.on .wd-ck{animation:tiWdCheck .45s var(--spring,cubic-bezier(.34,1.45,.64,1)) both}
+.wd-m.on:after{opacity:1;animation:tiWdShine 3.2s cubic-bezier(.45,0,.25,1) infinite}
+.wd-m.on:before{content:"";position:absolute;inset:0;border-radius:inherit;z-index:-1;pointer-events:none;border:2px solid var(--c);animation:tiWdRing 1.8s ease-out infinite}
+.wd-wave{--c:#1599f6}.wd-mtn{--c:#ffcc00}.wd-orange{--c:#ff7900}
+.wd-m.on{border-color:var(--c);box-shadow:0 8px 22px color-mix(in srgb,var(--c) 30%,transparent);background:linear-gradient(160deg,color-mix(in srgb,var(--c) 22%,#131824),#131824 70%)}
+.wd-wave .wd-ck{background:#1599f6}.wd-mtn .wd-ck{background:#e0a000}.wd-orange .wd-ck{background:#ff7900}
+/* jauge du montant par rapport au solde */
+.wd-meter{height:6px;margin-top:9px;border-radius:99px;background:#1b2130;overflow:hidden}
+.wd-meter i{display:block;height:100%;width:100%;border-radius:inherit;background:linear-gradient(90deg,#36c98f,#ffd477);transform:scaleX(0);transform-origin:left center;transition:transform .5s var(--ease,cubic-bezier(.16,1,.3,1)),background .3s ease}
+.wd-meter.over i{background:linear-gradient(90deg,#ff7a8a,#ff2547)}
+.wd-hint{margin:6px 0 0;font-size:11px;color:#8fa3bd;min-height:14px;transition:color .3s ease}
+.wd-hint.over{color:#ff7a8a}
+#withdrawFee.wd-pop{display:inline-block;animation:tiWdPop .4s var(--spring,cubic-bezier(.34,1.45,.64,1))}
+@media (prefers-reduced-motion:reduce){#recharge #depositPaymentOptions>button,#recharge #depositPaymentOptions>button *,.wd-m,.wd-m *{animation:none!important;transition:none!important}}
+</style>
+<script id="ti-pay-motion-js">
+(function(){
+ /* --- Retrait : cartes Wave / MTN / Orange liées au <select id="withdrawMethod"> (la valeur envoyée ne change pas) --- */
+ function init(){
+  var sel=document.getElementById('withdrawMethod');
+  if(!sel||document.getElementById('wdMethods'))return;
+  var field=sel.closest('.field');if(!field)return;
+  var logos={
+   'Wave':['Wave',typeof waveLogo==='function'?waveLogo(36):'','wave','Numéro Wave du bénéficiaire'],
+   'MTN Mobile Money':['MTN Money',typeof mtnLogo==='function'?mtnLogo(30):'','mtn','Numéro MTN Mobile Money du bénéficiaire'],
+   'Orange Money':['Orange Money',typeof orangeLogo==='function'?orangeLogo(36):'','orange','Numéro Orange Money du bénéficiaire']
+  };
+  var box=document.createElement('div');box.id='wdMethods';box.className='wd-methods';box.setAttribute('role','radiogroup');
+  Array.prototype.forEach.call(sel.options,function(o,i){
+   var m=logos[o.value]||[o.text,'','wave','Numéro du bénéficiaire'];
+   var b=document.createElement('button');b.type='button';b.className='wd-m wd-'+m[2];b.setAttribute('role','radio');
+   b.style.setProperty('--i',i);b.dataset.v=o.value;
+   b.innerHTML='<span class="wd-logo">'+m[1]+'</span><span class="wd-name">'+m[0]+'</span><i class="wd-ck">✓</i>';
+   b.addEventListener('click',function(){if(sel.value!==o.value){sel.value=o.value;sel.dispatchEvent(new Event('change'))}});
+   box.appendChild(b);
+  });
+  field.appendChild(box);field.classList.add('has-chips');
+  function sync(){
+   var ph=document.getElementById('withdrawPhone');
+   Array.prototype.forEach.call(box.children,function(b){var on=b.dataset.v===sel.value;b.classList.toggle('on',on);b.setAttribute('aria-checked',on?'true':'false');
+    if(on&&logos[b.dataset.v]&&ph)ph.placeholder=logos[b.dataset.v][3]});
+  }
+  sel.addEventListener('change',sync);sync();
+
+  /* jauge + frais animés pendant la saisie du montant */
+  var amt=document.getElementById('withdrawAmount');
+  if(amt&&!document.getElementById('wdMeter')){
+   var meter=document.createElement('div');meter.id='wdMeter';meter.className='wd-meter';meter.innerHTML='<i></i>';
+   var hint=document.createElement('p');hint.id='wdHint';hint.className='wd-hint';
+   var host=amt.parentNode;host.appendChild(meter);host.appendChild(hint);
+   var fee=document.getElementById('withdrawFee'),last='';
+   function upd(){
+    var a=Number(amt.value)||0,bal=(typeof current!=='undefined'&&current)?(Number(current.withdraw)||0):0;
+    var r=bal>0?Math.min(1,a/bal):(a>0?1:0);
+    meter.firstChild.style.transform='scaleX('+r+')';
+    var over=a>bal&&a>0;meter.classList.toggle('over',over);hint.classList.toggle('over',over);
+    hint.textContent=a<=0?'':over?'Montant supérieur à votre solde de retrait.':'Vous recevrez environ '+Math.round(a*0.9).toLocaleString('fr-FR')+' F après les frais.';
+    if(fee&&fee.textContent!==last){last=fee.textContent;fee.classList.remove('wd-pop');void fee.offsetWidth;fee.classList.add('wd-pop')}
+   }
+   amt.addEventListener('input',upd);upd();
+  }
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
+</script>
 </body>
 </html>
