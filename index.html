@@ -279,11 +279,11 @@ body{background:radial-gradient(ellipse at 50% -5%,#651126 0,transparent 31%),ra
 <div class="panel" id="depositPaymentOptions"><h3>Comment voulez-vous payer ?</h3><p class="muted" style="font-size:12px;margin-bottom:14px">Appuyez sur votre moyen de paiement. Nous vous demanderons ensuite votre numéro, puis le montant.</p>
 <button type="button" id="btnJekoPay" onclick="startDeposit('JEKO')" style="display:none;width:100%;align-items:center;gap:14px;padding:14px 16px;margin-bottom:12px;border-radius:14px;background:linear-gradient(100deg,#2ecc71,#138a45);color:#fff;font-weight:800;font-size:16px;text-align:left"><span id="logoJeko"></span><span>Paiement<br><small style="font-weight:500;opacity:.85">Côte d’Ivoire · payez simplement</small></span></button>
 <button type="button" id="btnWavePay" onclick="startDeposit('WAVE')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:12px;border-radius:14px;background:linear-gradient(100deg,#1599f6,#0756b5);color:#fff;font-weight:800;font-size:16px;text-align:left"><span id="logoWave"></span><span>Payer avec Wave<br><small style="font-weight:500;opacity:.85">Côte d’Ivoire, Sénégal, Mali, Burkina…</small></span></button>
-<button type="button" onclick="startDeposit('MTN')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:linear-gradient(100deg,#ffcc00,#e0a000);color:#171717;font-weight:800;font-size:16px;text-align:left"><span id="logoMtn"></span><span>Payer avec MTN Mobile Money<br><small style="font-weight:600;opacity:.75">Tous les pays</small></span></button></div>
+<button type="button" onclick="startDeposit('MTN')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:12px;border-radius:14px;background:linear-gradient(100deg,#ffcc00,#e0a000);color:#171717;font-weight:800;font-size:16px;text-align:left"><span id="logoMtn"></span><span>Payer avec MTN Mobile Money<br><small style="font-weight:600;opacity:.75">Tous les pays</small></span></button><button type="button" onclick="startDeposit('ORANGE')" style="width:100%;display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:14px;background:linear-gradient(100deg,#ff8a00,#e95b00);color:#fff;font-weight:800;font-size:16px;text-align:left"><span id="logoOrange"></span><span>Payer avec Orange Money international<br><small style="font-weight:500;opacity:.9">Copier le numéro et envoyer la preuve</small></span></button></div>
 </section>
 
 <section id="withdraw" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Demande de retrait</h2><p class="subtext">Frais de retrait : 10 %</p></div></div>
-<div class="panel"><div class="stats"><div class="stat"><small>Solde disponible</small><strong id="withdrawBalance">0 F</strong></div><div class="stat"><small>Frais estimés</small><strong id="withdrawFee">0 F</strong></div></div><div class="field"><label>Montant demandé (minimum 1 000 FCFA)</label><input id="withdrawAmount" type="number" min="1000" placeholder="Ex. 5000" oninput="calcFee()"></div><div class="field"><label>Moyen de retrait</label><select id="withdrawMethod"><option value="Wave">Wave</option><option value="MTN Mobile Money">MTN Mobile Money</option></select></div><div class="field"><label>Numéro du bénéficiaire</label><input id="withdrawPhone" type="tel" placeholder="Numéro Wave ou MTN"></div><div class="note">Votre demande sera examinée par l’administrateur. Le retrait est traité après validation.</div><button class="wide" onclick="submitWithdraw()">Envoyer la demande</button></div>
+<div class="panel"><div class="stats"><div class="stat"><small>Solde disponible</small><strong id="withdrawBalance">0 F</strong></div><div class="stat"><small>Frais estimés</small><strong id="withdrawFee">0 F</strong></div></div><div class="field"><label>Montant demandé (minimum 1 000 FCFA)</label><input id="withdrawAmount" type="number" min="1000" placeholder="Ex. 5000" oninput="calcFee()"></div><div class="field"><label>Moyen de retrait</label><select id="withdrawMethod"><option value="Wave">Wave</option><option value="MTN Mobile Money">MTN Mobile Money</option><option value="Orange Money">Orange Money international</option></select></div><div class="field"><label>Numéro du bénéficiaire</label><input id="withdrawPhone" type="tel" placeholder="Numéro Wave, MTN ou Orange Money"></div><div class="note">Votre demande sera examinée par l’administrateur. Le retrait est traité après validation.</div><button class="wide" onclick="submitWithdraw()">Envoyer la demande</button></div>
 </section>
 
 <section id="history" class="page"><div class="titlebar"><button class="back" onclick="go('home')">‹</button><div><h2>Historique</h2><p class="subtext">Dépôts, retraits et souscriptions demandés.</p></div></div><div class="panel" id="historyList"><p class="muted">Connectez-vous pour afficher vos demandes.</p></div></section>
@@ -800,7 +800,7 @@ function renderProducts(days=30){duration=Number(days);const arr=duration===30?P
 function renderHome(){processMaturedInvestments();hello.textContent=current?'Bonjour, '+current.name:'Bonjour, invité';homeBalance.textContent=money(current?current.deposit+current.withdraw:0);homeProducts.innerHTML=PLAN30.slice(0,4).map((p,i)=>productHTML(p,i,false)).join('');const rs=current?db.requests.filter(r=>r.phone===current.phone).slice(-3).reverse():[];homeHistory.innerHTML=rs.length?rs.map(r=>`<div class="historyitem"><span>${esc(r.type)}<br><small class="muted">${fmtDT(r.created).slice(0,10)}</small></span><span>${money(r.amount)}<br><span class="status">${esc(statusLabel(r))}</span></span></div>`).join(''):'<div class="muted" style="font-size:11px">Aucune activité pour le moment.</div>'}
 function askPlan(price,days,vip,daily=0,total=0,longTerm=false){if(!current){toast('Connectez-vous pour continuer.');showAuth('login');authScreen.style.display='flex';document.querySelector('.app').classList.add('gated');return}const dep=Number(current.deposit)||0;
 const approvedDeposit=(db.requests||[]).some(function(r){
- if(!(r.type&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)))return false;
+ if(!(r.type&&/^Dépôt (Wave|MTN|Orange|Paiement)/.test(r.type)))return false;
  if(r.status!=='Validée')return false;
  if(current.phone&&r.phone===current.phone)return true;
  if(current.uid&&r.uid===current.uid)return true;
@@ -1014,9 +1014,10 @@ async function resetPassword(){
  try{await waitForFirebase();await window.firebaseResetPassword(email);toast('Un e-mail de réinitialisation vous a été envoyé (vérifiez aussi les spams).')}catch(e){toast((window.firebaseAuthError&&window.firebaseAuthError(e))||e.message||'Erreur')}}
 function logout(){try{window.firebaseSignOut&&window.firebaseSignOut()}catch(e){}current=null;renderAccount();renderHome();document.querySelector('.app')?.classList.add('gated');const screen=document.getElementById('authScreen');if(screen)screen.style.display='flex';showAuth('login');const oldPass=document.getElementById('authLoginPass');if(oldPass)oldPass.value='';if(typeof toast==='function')toast('Déconnexion effectuée.')}
 function renderAccount(){loggedOut.classList.toggle('hidden',!!current);loggedIn.classList.toggle('hidden',!current);if(current){accountName.textContent=current.name;accountPhone.textContent=current.phone+' · '+current.country;accountDeposit.textContent=money(current.deposit);accountWithdraw.textContent=money(current.withdraw)}}
-const JEKO_LINK='https://pay.jeko.africa/pl/b0b8758e-0d42-4282-bed4-1e802b406d5d',PAY_NUMBER='0566219780',PAY_NAME='TECHNOLOGIE INVESTI',PENDING_KEY='ti_pending_deposit';
+const JEKO_LINK='https://pay.jeko.africa/pl/b0b8758e-0d42-4282-bed4-1e802b406d5d',PAY_NUMBER='0566219780',PAY_NAME='TECHNOLOGIE INVESTI',ORANGE_NUMBER='0749045488',PENDING_KEY='ti_pending_deposit';
 let pendingDeposit=null,pendingProofData='',pendingDepositMode='';
 function waveLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Wave"><rect width="48" height="48" rx="12" fill="#1DC8FF"/><path d="M8 20c4-6 8-6 12 0s8 6 12 0 6-4 8-3M8 31c4-6 8-6 12 0s8 6 12 0 6-4 8-3" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>'}
+function orangeLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Orange Money"><rect width="48" height="48" rx="12" fill="#ff7900"/><text x="24" y="30" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="900" fill="#fff">OM</text></svg>'}
 function mtnLogo(n){n=n||48;return '<svg width="'+Math.round(n*1.25)+'" height="'+n+'" viewBox="0 0 60 48" aria-label="MTN"><ellipse cx="30" cy="24" rx="29" ry="22" fill="#FFCB05" stroke="#171717" stroke-width="2"/><text x="30" y="30" text-anchor="middle" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="18" fill="#171717">MTN</text></svg>'}
 (function(){const w=document.getElementById('logoWave'),m=document.getElementById('logoMtn');if(w)w.innerHTML=waveLogo(46);if(m)m.innerHTML=mtnLogo(40)})();
 function payLogo(n){n=n||48;return '<svg width="'+n+'" height="'+n+'" viewBox="0 0 48 48" aria-label="Paiement"><rect width="48" height="48" rx="12" fill="#fff"/><rect x="9" y="14" width="30" height="20" rx="4" fill="#138a45"/><rect x="9" y="19" width="30" height="5" fill="#fff" opacity=".9"/><rect x="13" y="28" width="9" height="3" rx="1.5" fill="#fff"/></svg>'}
@@ -1030,8 +1031,8 @@ function updateDepositOptions(){
 function isCI(){return /ivoire/i.test((current&&current.country)||'')}
 function savePendingDeposit(step){try{localStorage.setItem(PENDING_KEY,JSON.stringify({step:step,mode:pendingDepositMode,phone:pendingDeposit&&pendingDeposit.phone,amount:pendingDeposit&&pendingDeposit.amount,uid:current&&current.uid,t:Date.now()}))}catch(e){}}
 function clearPendingDeposit(){try{localStorage.removeItem(PENDING_KEY)}catch(e){}}
-function methodLabel(){return pendingDepositMode==='WAVE'?'Wave':pendingDepositMode==='JEKO'?'Paiement':'MTN Mobile Money'}
-function methodLogo(n){return pendingDepositMode==='WAVE'?waveLogo(n):pendingDepositMode==='JEKO'?payLogo(n):mtnLogo(n)}
+function methodLabel(){return pendingDepositMode==='WAVE'?'Wave':pendingDepositMode==='JEKO'?'Paiement':pendingDepositMode==='ORANGE'?'Orange Money':'MTN Mobile Money'}
+function methodLogo(n){return pendingDepositMode==='WAVE'?waveLogo(n):pendingDepositMode==='JEKO'?payLogo(n):pendingDepositMode==='ORANGE'?orangeLogo(n):mtnLogo(n)}
 function startDeposit(mode){
  if(!current){toast('Connectez-vous avant de créer une demande.');go('account');return}
  pendingDepositMode=mode;pendingProofData='';pendingDeposit=null;
@@ -1059,7 +1060,9 @@ function proofField(){
  return `<div class="field"><label>Capture d’écran (optionnelle — reste sur votre téléphone)</label><input id="depositProofFile" type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" onchange="previewDepositProof(this)"><div id="proofPreview" style="margin-top:8px"></div></div><button class="wide" onclick="submitDepositProof()">Envoyer la demande de dépôt</button><p class="muted" style="font-size:11px;margin-top:10px">La demande part directement à l’administrateur pour validation ou refus. La photo n’est pas transmise : elle reste uniquement dans votre historique local.</p>`
 }
 function showDepositInstructions(){
- const d=pendingDeposit,head=`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#3a1015;border:1px solid #ff4b5c;font-weight:800;font-size:14px;line-height:1.4">⚠️ Suivez bien les étapes et lisez ceci : c’est obligatoire.</div><p style="margin:0 0 10px">Montant : <b>${money(d.amount)}</b> · ${methodLogo(22)} <b>${methodLabel()}</b></p>`;
+ const d=pendingDeposit;
+ if(pendingDepositMode==='ORANGE')savePendingDeposit('proof');
+ const head=`<div style="padding:12px;margin:4px 0 12px;border-radius:12px;background:#3a1015;border:1px solid #ff4b5c;font-weight:800;font-size:14px;line-height:1.4">⚠️ Suivez bien les étapes et lisez ceci : c’est obligatoire.</div><p style="margin:0 0 10px">Montant : <b>${money(d.amount)}</b> · ${methodLogo(22)} <b>${methodLabel()}</b></p>`;
  if(pendingDepositMode==='JEKO'){
   if(!isCI()){closeModal();toast('Ce paiement est réservé à la Côte d’Ivoire.');return}
   modal('Paiement',head+`<p style="line-height:1.55">Appuyez sur <b>« Payer »</b>. Vous serez envoyé directement sur la page de paiement.</p><p class="muted" style="font-size:12px;line-height:1.5">Après le paiement, <b>revenez sur ce site</b> : nous vous demanderons la <b>capture d’écran du paiement</b> pour que l’administrateur valide votre dépôt.</p><button class="wide" style="display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(100deg,#2ecc71,#138a45)" onclick="payDepositCI()">${payLogo(26)} Payer</button>`);
@@ -1067,6 +1070,8 @@ function showDepositInstructions(){
   modal('Paiement Wave',head+`<p style="line-height:1.55">Vous êtes en <b>Côte d’Ivoire</b> : appuyez sur <b>« Payer avec Wave »</b>. Vous serez envoyé directement vers Wave pour payer.</p><p class="muted" style="font-size:12px;line-height:1.5">Après le paiement, revenez sur ce site : nous vous demanderons la <b>capture d’écran de la transaction</b> pour que l’administrateur valide votre dépôt.</p><button class="wide" style="display:flex;align-items:center;justify-content:center;gap:10px;background:linear-gradient(100deg,#1599f6,#0756b5)" onclick="payDepositCI()">${waveLogo(26)} Payer avec Wave</button>`);
  }else if(pendingDepositMode==='WAVE'){
   modal('Paiement Wave',head+`<p style="line-height:1.55">Vous n’êtes pas en Côte d’Ivoire : <b>copiez le numéro de téléphone et le nom d’utilisateur</b> ci-dessous, puis allez les <b>coller dans Wave</b> pour payer.</p>`+payBox()+`<p class="muted" style="font-size:12px;line-height:1.5">Vérifiez que le nom affiché dans Wave correspond avant de confirmer. Après le paiement, revenez ici et envoyez la <b>capture d’écran de la transaction</b>.</p>`+proofField());
+ }else if(pendingDepositMode==='ORANGE'){
+  modal('Paiement Orange Money international',head+`<p style="line-height:1.55">Copiez le numéro Orange Money ci-dessous, puis ouvrez Orange Money et envoyez le montant choisi. Après le paiement, revenez sur cette page et envoyez la preuve. Votre demande reste mémorisée si vous quittez temporairement la page.</p><div style="padding:14px;margin:12px 0;border:1px solid #ff7900;border-radius:14px;background:linear-gradient(135deg,#38200a,#1a1720)"><p style="margin:0 0 6px;font-size:12px">Numéro Orange Money</p><div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap"><strong style="font-size:24px;letter-spacing:2px;color:#ffb45c">${ORANGE_NUMBER}</strong><button type="button" class="smallbtn" onclick="copyPaymentDetail(ORANGE_NUMBER)">Copier le numéro</button></div><p style="font-size:12px;margin:10px 0 0">Vérifiez le numéro et le montant avant de confirmer le paiement.</p></div>`+proofField());
  }else{
   modal('Paiement MTN Mobile Money',head+`<p style="line-height:1.55">Quel que soit votre pays : <b>copiez le numéro et le nom</b> ci-dessous, puis payez avec <b>MTN Mobile Money</b>.</p>`+payBox()+`<p class="muted" style="font-size:12px;line-height:1.5">Après le paiement, envoyez la <b>capture d’écran de la transaction</b>.</p>`+proofField());
  }
@@ -1096,6 +1101,7 @@ function resumePendingDeposit(){
 document.addEventListener('visibilitychange',function(){if(!document.hidden)resumePendingDeposit()});
 window.addEventListener('load',function(){setTimeout(resumePendingDeposit,2500)});
 function copyPaymentDetail(value){
+ if(pendingDepositMode==='ORANGE'&&pendingDeposit&&pendingDeposit.amount)savePendingDeposit('proof');
  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(value).then(()=>toast('Copié : '+value)).catch(()=>fallbackCopyPayment(value));}
  else fallbackCopyPayment(value);
 }
@@ -1113,7 +1119,7 @@ function previewDepositProof(input){
 }
 async function submitDepositProof(){
  if(!current||!pendingDeposit||!pendingDeposit.amount){toast('Session ou demande de dépôt introuvable.');return}
- const d=pendingDeposit,type=pendingDepositMode==='JEKO'?'Dépôt Paiement':pendingDepositMode==='MTN'?'Dépôt MTN':(isCI()?'Dépôt Wave':'Dépôt Wave international');
+ const d=pendingDeposit,type=pendingDepositMode==='JEKO'?'Dépôt Paiement':pendingDepositMode==='MTN'?'Dépôt MTN':pendingDepositMode==='ORANGE'?'Dépôt Orange':(isCI()?'Dépôt Wave':'Dépôt Wave international');
  // La photo est envoyée au stockage cloud pour que l’administrateur puisse la consulter.
  const localProof=pendingProofData||'';
  const req={
@@ -1278,7 +1284,7 @@ function renderAdmin(){
  var elInv=document.getElementById('adminInvestedCount');if(elInv)elInv.textContent=investedUsers.length;
  var elNot=document.getElementById('adminNotInvestedCount');if(elNot)elNot.textContent=notInvestedUsers.length;
  adminWithdrawals.textContent=pendingWithdrawals.length;
- var elDep=document.getElementById('adminDeposits');if(elDep)elDep.textContent=reqs.filter(function(r){return r.type&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type)}).length;
+ var elDep=document.getElementById('adminDeposits');if(elDep)elDep.textContent=reqs.filter(function(r){return r.type&&/^Dépôt (Wave|MTN|Orange|Paiement)/.test(r.type)}).length;
  if(typeof waveLink!=='undefined'&&waveLink)waveLink.value=db.wave||'';
  const pendingRequests=reqs.filter(function(r){return !['Validée','Refusée'].includes(r.status)});
  adminRequests.innerHTML=pendingRequests.length?'<table><tr><th>Type / client</th><th>Montant</th><th>Actions</th></tr>'+pendingRequests.slice().reverse().map(function(r){
@@ -1394,7 +1400,7 @@ async function setRequestStatus(id,status){
  r._processing=true;
  try{
   const now=new Date().toISOString();
-  const isDeposit=!!(r.type&&/^Dépôt (Wave|MTN|Paiement)/.test(r.type));
+  const isDeposit=!!(r.type&&/^Dépôt (Wave|MTN|Orange|Paiement)/.test(r.type));
   const amount=Number(String(r.amount??0).replace(/[^\d.-]/g,''))||0;
   if(!Number.isFinite(amount)||amount<=0){toast('Montant invalide : demande non traitée.');return}
   r.status=status;
